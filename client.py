@@ -3,6 +3,7 @@ from tkinter import *
 from tkinter import simpledialog, Toplevel
 from tkinter.font import Font
 import threading
+import pyperclip
 
 class Client:
     def __init__(self, host="192.168.50.157", port=12345):
@@ -27,6 +28,7 @@ class Client:
                 msg = self.server.recv(1024).decode()
                 if msg:
                     self.show_message(msg)
+                    pyperclip.copy(msg)
                 else:
                     self.server.close()
                     break

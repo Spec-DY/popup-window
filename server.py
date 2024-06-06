@@ -3,6 +3,7 @@ import threading
 from tkinter import *
 from tkinter import simpledialog, messagebox
 from tkinter.font import Font
+import pyperclip
 
 class Server:
     def __init__(self, host="0.0.0.0", port=12345):
@@ -46,6 +47,7 @@ class Server:
                 msg = client.recv(1024).decode()
                 if msg:
                     self.show_message(msg)
+                    pyperclip.copy(msg)
                 else:
                     client.close()
                     self.clients.remove(client)  # Remove client from the list
