@@ -1,6 +1,7 @@
 import socket
 from tkinter import *
-from tkinter import simpledialog, messagebox
+from tkinter import simpledialog, Toplevel
+from tkinter.font import Font
 import threading
 
 class Client:
@@ -9,15 +10,15 @@ class Client:
         self.root.title("Client")
         self.root.geometry("200x140")
 
-        # Setup the socket
+        # socket
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.connect((host, port))
 
         # Start the thread for receiving messages
         threading.Thread(target=self.receive_message).start()
 
-        # GUI for sending messages
         Button(self.root, text="Send Message", command=self.send_message).pack(pady=20)
+        Button(self.root, text="Close", command=self.close_connection).pack(pady=10)
         self.root.mainloop()
 
     def receive_message(self):
@@ -25,17 +26,41 @@ class Client:
             try:
                 msg = self.server.recv(1024).decode()
                 if msg:
-                    messagebox.showinfo("Received Message", msg)
+                    self.show_message(msg)
                 else:
                     self.server.close()
                     break
             except ConnectionResetError:
                 break
 
+    def show_message(self, msg):
+
+        alert_window = Toplevel(self.root)
+        alert_window.title("Received Message")
+        alert_window.geometry("300x200")
+        alert_window.attributes('-topmost', True)  # keep window on top
+
+        message_font = Font(family="Arial", size=60, weight="bold")
+
+        # Display the message with custom font
+        Label(alert_window, text=msg, font=message_font, padx=20, pady=20).pack()
+
+        ok_button = Button(alert_window, text="OK", command=alert_window.destroy)
+        ok_button.pack(pady=10)
+
     def send_message(self):
         msg = simpledialog.askstring("Input", "Enter your message:")
         if msg:
             self.server.send(msg.encode())
+    
+    def close_connection(self):
+        try:
+            # close socket
+            self.server.close()
+        except Exception as e:
+            print(f"Failed to close the connection: {e}")
+        finally:
+            self.root.quit()
 
 if __name__ == "__main__":
     client = Client()

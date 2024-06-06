@@ -2,6 +2,7 @@ import socket
 import threading
 from tkinter import *
 from tkinter import simpledialog, messagebox
+from tkinter.font import Font
 
 class Server:
     def __init__(self, host="0.0.0.0", port=12345):
@@ -23,7 +24,7 @@ class Server:
         # GUI for sending messages
         Button(self.root, text="Send Message", command=self.send_message).pack(pady=20)
         Button(self.root, text="Close Server", command=self.close_server).pack(pady=20)
-        self.root.protocol("WM_DELETE_WINDOW", self.close_server)  # Handle window close button
+        self.root.protocol("WM_DELETE_WINDOW", self.close_server)  # window close button
         self.root.mainloop()
 
     def accept_connections(self):
@@ -54,7 +55,18 @@ class Server:
                 break
 
     def show_message(self, msg):
-        messagebox.showinfo("Received Message", msg)
+        alert_window = Toplevel(self.root)
+        alert_window.title("Received Message")
+        alert_window.geometry("300x200")
+        alert_window.attributes('-topmost', True)  # keep window on top
+
+        message_font = Font(family="Arial", size=60, weight="bold")
+
+        # Display the message with the custom font
+        Label(alert_window, text=msg, font=message_font, padx=20, pady=20).pack()
+        
+        ok_button = Button(alert_window, text="OK", command=alert_window.destroy)
+        ok_button.pack(pady=10)
 
     def send_message(self):
         msg = simpledialog.askstring("Input", "Enter your message:")
