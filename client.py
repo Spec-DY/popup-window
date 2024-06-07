@@ -1,7 +1,5 @@
 import socket
-from tkinter import *
-from tkinter import simpledialog, Toplevel
-from tkinter.font import Font
+from tkinter import simpledialog, Toplevel, Button, Tk, Label, font
 import threading
 import pyperclip
 
@@ -36,13 +34,16 @@ class Client:
                 break
 
     def show_message(self, msg):
-
+        # set window size
+        avg_width = 50
+        extra_space = 10
+        window_size = avg_width*len(msg)+extra_space
         alert_window = Toplevel(self.root)
         alert_window.title("Received Message")
-        alert_window.geometry("300x200")
+        alert_window.geometry(f"{window_size}x150")
         alert_window.attributes('-topmost', True)  # keep window on top
 
-        message_font = Font(family="Arial", size=60, weight="bold")
+        message_font = font.Font(family="Arial", size=40, weight="bold")
 
         # Display the message with custom font
         Label(alert_window, text=msg, font=message_font, padx=20, pady=20).pack()
