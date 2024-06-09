@@ -2,6 +2,7 @@ import socket
 from tkinter import simpledialog, Toplevel, Button, Tk, Label, font
 import threading
 import pyperclip
+import os
 
 class Client:
     def __init__(self, host, port=12345):
@@ -65,9 +66,22 @@ class Client:
         finally:
             self.root.quit()
 
+def save_ip_address(ip):
+    with open("ip_address.txt", "w") as file:
+        file.write(ip)
+
+def load_ip_address():
+    if os.path.exists("ip_address.txt"):
+        with open("ip_address.txt", "r") as file:
+            return file.readline().strip()
+    return None
+
 def main():
-    
-    host = "192.168.50.157"
+    host = load_ip_address()
+    if host is None:
+        host = simpledialog.askstring("Target", "Enter host IP address:")
+        save_ip_address(host)
+
     client = Client(host)
     
 
