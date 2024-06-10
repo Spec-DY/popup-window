@@ -10,10 +10,17 @@ class Client:
         self.root.title("Client")
         self.root.geometry("200x140")
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server.connect((host, port))
+        connected = False
+        try:
+            self.server.connect((host, port))
+            connected = True
+        except (ConnectionRefusedError, OSError):
+            self.show_message("Connection Failed", self.shutdown)  # callback
 
         # start the thread for receiving messages
-        threading.Thread(target=self.receive_message).start()
+        if connected:
+            threading.Thread(target=self.receive_message).start()
+        
         Button(self.root, text="Send Message", command=self.send_message).pack(pady=20)
         Button(self.root, text="Close", command=self.close_connection).pack(pady=10)
         self.root.mainloop()
@@ -31,7 +38,7 @@ class Client:
             except ConnectionResetError:
                 break
 
-    def show_message(self, msg):
+    def show_message(self, msg, on_close=None):
         # set window size
         avg_width = 50
         extra_space = 10
@@ -49,7 +56,7 @@ class Client:
         Label(alert_window, text=msg, font=message_font, padx=20, pady=20).pack()
 
         # message ok button
-        ok_button = Button(alert_window, text="OK", command=alert_window.destroy)
+        ok_button = Button(alert_window, text="OK", command=lambda: [alert_window.destroy(), on_close() if on_close else None])
         ok_button.pack(pady=10)
 
     def send_message(self):
@@ -65,6 +72,9 @@ class Client:
             print(f"Failed to close the connection: {e}")
         finally:
             self.root.quit()
+
+    def shutdown(self):
+        self.root.destroy()
 
 def save_ip_address(ip):
     with open("ip_address.txt", "w") as file:
