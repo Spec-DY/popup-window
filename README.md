@@ -1,7 +1,7 @@
 # AnnoyingMessageBox
 
 ## Pop up some message boxes to your friend's screen while they are using their PC!
-All you need is run client.py on their side.
+All you need is run client.py on their side and server.py on your side.
 #### Instruction:
 Run `server.py` first then `client.py`<br>
 Enter host ip address in client end.
