@@ -39,8 +39,8 @@ class Client:
     def setup_tray_icon(self):
         self.icon = icon("Client",
                          create_image(),
-                         menu=menu(item('Show Window', lambda: self.show_window()),
-                                   item('Exit', lambda: self.shutdown())))
+                         menu=menu(item('Show Window', lambda: self.show_window())))
+                                   #item('Exit', lambda: self.shutdown())))
 
     def on_minimize(self, event=None):
         if self.root.state() == 'iconic':
