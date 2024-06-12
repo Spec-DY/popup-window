@@ -65,12 +65,12 @@ class Server:
         window_size = avg_width*len(msg)+extra_space
         alert_window = Toplevel(self.root)
         alert_window.title("Received Message")
-        alert_window.geometry(f"{window_size}x150")
+        alert_window.geometry(f"{window_size}x170")
 
         # keep window on top
         alert_window.attributes('-topmost', True)
 
-        message_font = font.Font(family="Arial", size=40, weight="bold")
+        message_font = font.Font(family="Arial Black", size=40, weight="bold")
 
         # Display the message with the custom font
         Label(alert_window, text=msg, font=message_font, padx=20, pady=20).pack()
