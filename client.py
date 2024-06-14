@@ -5,6 +5,7 @@ import pyperclip
 import os
 from pystray import Icon as icon, MenuItem as item, Menu as menu
 from PIL import Image, ImageDraw
+import time
 
 def create_image():
     image = Image.new('RGB', (64, 64), color=(0, 0, 0))
@@ -19,10 +20,12 @@ class Client:
         self.root.geometry("200x140")
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         
-        try:
-            self.server.connect((host, port))
-        except (ConnectionRefusedError, OSError):
-            self.show_message("Connection Failed", self.shutdown)  # callback
+        while True:
+            try:
+                self.server.connect((host, port))
+                break
+            except (ConnectionRefusedError, OSError):
+                time.sleep(10)
 
         Button(self.root, text="Send Message", command=self.send_message).pack(pady=20)
         Button(self.root, text="Close", command=self.shutdown).pack(pady=10)

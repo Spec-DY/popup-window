@@ -5,17 +5,20 @@ import pyperclip
 import os
 from pystray import Icon as icon, MenuItem as item, Menu as menu
 from PIL import Image, ImageDraw
+PINK = (255, 105, 180)
+TITLE = "Server"
+
 
 def create_image():
     image = Image.new('RGB', (64, 64), color=(0, 0, 0))
     d = ImageDraw.Draw(image)
-    d.rectangle([8, 8, 56, 56], fill=(255, 105, 180)) # pink
+    d.rectangle([8, 8, 56, 56], fill=PINK) # pink
     return image
 
 class Server:
     def __init__(self, host="0.0.0.0", port=12345):
         self.root = Tk()
-        self.root.title("Server")
+        self.root.title(TITLE)
         self.root.geometry("200x140")
         # List to store client connections
         self.clients = []
