@@ -2,6 +2,15 @@ import socket
 from tkinter import simpledialog, Toplevel, Button, Tk, Label, font
 import threading
 import pyperclip
+import os
+from pystray import Icon as icon, MenuItem as item, Menu as menu
+from PIL import Image, ImageDraw
+
+def create_image():
+    image = Image.new('RGB', (64, 64), color=(0, 0, 0))
+    d = ImageDraw.Draw(image)
+    d.rectangle([8, 8, 56, 56], fill=(255, 105, 180)) # pink
+    return image
 
 class Server:
     def __init__(self, host="0.0.0.0", port=12345):
@@ -26,7 +35,28 @@ class Server:
         Button(self.root, text="Close Server", command=self.close_server).pack(pady=20)
         # window close button
         self.root.protocol("WM_DELETE_WINDOW", self.close_server)
+        self.root.bind("<Unmap>", self.on_minimize)
+        self.setup_tray_icon()
+        self.icon.run_detached()
+        # threading.Thread(target=self.receive_message, daemon=True).start() 
+
         self.root.mainloop()
+    
+    def setup_tray_icon(self):
+        self.icon = icon("Server",
+                         create_image(),
+                         menu=menu(item('Show Window', lambda: self.show_window())))
+    
+    def on_minimize(self, event=None):
+        if self.root.state() == 'iconic':
+            self.root.withdraw()
+            self.icon.visible = True
+
+    def show_window(self):
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+        self.icon.visible = False
 
     def accept_connections(self):
         while self.running:
@@ -58,7 +88,7 @@ class Server:
                 self.clients.remove(client)
                 break
 
-    def show_message(self, msg):
+    def show_message(self, msg, on_close=None):
         # set window size
         avg_width = 50
         extra_space = 10
@@ -73,10 +103,8 @@ class Server:
         message_font = font.Font(family="Arial Black", size=40, weight="bold")
 
         # Display the message with the custom font
-        Label(alert_window, text=msg, font=message_font, padx=20, pady=20).pack()
-        
-        ok_button = Button(alert_window, text="OK", command=alert_window.destroy)
-        ok_button.pack(pady=10)
+        Label(alert_window, text=msg, font=message_font, padx=20, pady=20, fg="red").pack()
+        Button(alert_window, text="OK", command=lambda: [alert_window.destroy(), on_close() if on_close else None]).pack(pady=10)
 
     def send_message(self):
         msg = simpledialog.askstring("Input", "Enter your message:")
@@ -89,8 +117,13 @@ class Server:
         self.running = False
         for client in self.clients:
             client.close()
-        self.server.close()
-        self.root.destroy()  
+        self.icon.stop()
+        try:
+            self.server.close()
+        except Exception as e:
+            print(f"Error closing socket: {str(e)}")
+        finally:
+            self.root.destroy()
 
 if __name__ == "__main__":
     server = Server()

@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw
 def create_image():
     image = Image.new('RGB', (64, 64), color=(0, 0, 0))
     d = ImageDraw.Draw(image)
-    d.rectangle([8, 8, 56, 56], fill=(10, 186, 181))
+    d.rectangle([8, 8, 56, 56], fill=(10, 186, 181)) # blue
     return image
 
 class Client:
@@ -79,7 +79,7 @@ class Client:
         
         message_font = font.Font(family="Arial Black", size=40, weight="bold")
 
-        Label(alert_window, text=msg, font=message_font, padx=20, pady=20).pack()
+        Label(alert_window, text=msg, font=message_font, padx=20, pady=20, fg="red").pack()
         Button(alert_window, text="OK", command=lambda: [alert_window.destroy(), on_close() if on_close else None]).pack(pady=10)
 
     def send_message(self):
