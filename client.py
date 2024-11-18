@@ -108,27 +108,51 @@ class Client:
         print(f"Received message: {msg}")
         # Set window size based on message length
         
-        
         avg_width = 50
         extra_space = 50
         min_width = 100
-        screen_width = self.root.winfo_screenwidth()  # Get the user's screen width
+        screen_width = self.root.winfo_screenwidth()# Get the user's screen width
+        screen_height = self.root.winfo_screenheight()
         max_width = screen_width - 100
         
         calculated_width = avg_width * len(msg) + extra_space
         window_width = max(min_width, min(calculated_width, max_width))
-        window_height = 170
+        window_height = 150
+        
+        # Calculate position for the alert window to be centered
+        x_offset = (screen_width - window_width) // 2
+        y_offset = (screen_height - window_height) // 2
         
         alert_window = ctk.CTkToplevel(self.root)
         alert_window.title("Received Message")
-        alert_window.geometry(f"{window_width}x{window_height}")
+        alert_window.geometry(f"{window_width}x{window_height}+{x_offset}+{y_offset}")
         alert_window.attributes('-topmost', True)
         
-        scrollable_frame = ctk.CTkScrollableFrame(alert_window, width=window_width, height= window_height - 60)
-        scrollable_frame.pack(pady=10, padx=10, fill="both", expand=True)
+        # Create main frame
+        main_frame = ctk.CTkFrame(alert_window)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
-        ctk.CTkLabel(scrollable_frame, text=msg, font=("Arial Black", 46), text_color="red", wraplength=window_width - 40).pack(pady=10, padx=10, fill="both", expand=True)
-    
+        # Add scrollable frame for message
+        scrollable_frame = ctk.CTkScrollableFrame(main_frame, width=window_width-20, height=window_height-60)
+        scrollable_frame.pack(fill="both", expand=True)
+        
+        # Add message label
+        ctk.CTkLabel(
+            scrollable_frame, 
+            text=msg, 
+            font=("Arial Black", 46), 
+            text_color="red",
+            wraplength=window_width-40
+        ).pack(pady=5, padx=5, fill="both", expand=True)
+        
+        # Add reply button in scrollable frame instead of main frame
+        # so we dont have to increase window height
+        ctk.CTkButton(
+            scrollable_frame,
+            text="Reply",
+            command=self.send_message
+        ).pack(pady=(5,0))  # Top padding only
+        
     def send_message(self):
         dialog = ctk.CTkInputDialog(title="Send Message", text="Enter your message:")
 
