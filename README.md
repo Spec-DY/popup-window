@@ -1,18 +1,21 @@
-# AnnoyingMessageBox
+# Malware Popups
 
-## Pop up some message boxes to your friend's screen while they are using their PC!
+## Pop up some message windows to your friend's screen while they are using their PC!
 
-All you need is run server.py on your server side and client.py on their side. The server will boardcast any message received.
+### Features:
 
-#### Instruction:
+- Send messages to any connected client.
+- Messages appear as popup windows on the client's screen.
 
-Run `server.py` in your home server (e.g. Raspberry pi)
-Run `client.exe` on any Windows computer <br>
-Enter host ip address in client end.
+### Installation:
+
+1. Run `server.py` in your home server (e.g. Raspberry pi)
+2. Run `client.exe` on any Windows PC
+3. Enter your server IP address in client end (only required by first time).
 
 #### Note:
 
-You can change the host ip address in `ip_address.txt` after first use.<br>
-Right click icon in system tray after minimized.<br>
-`ip_address.txt` is located in `C:\Users\<Username>\AppData\Roaming\annoybox\`<br>
-When clients receive message, it will be automatically copied to clipboard.
+- You can change the host ip address in `ip_address.txt` after first use.
+- Right click icon in system tray after minimized.
+- `ip_address.txt` is located in `C:\Users\<Username>\AppData\Roaming\annoybox\`
+- When clients receive message, it will be automatically copied to clipboard.
