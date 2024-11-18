@@ -6,6 +6,8 @@ import json
 from datetime import datetime
 import logging
 
+PORT_NUMBER = 12345
+
 # Configure logging
 logging.basicConfig(
     filename='server.log',
@@ -15,7 +17,7 @@ logging.basicConfig(
 )
 
 class Server:
-    def __init__(self, host="0.0.0.0", port=12345):
+    def __init__(self, host="0.0.0.0", port=PORT_NUMBER):
         self.clients = []
         self.running = True
         
