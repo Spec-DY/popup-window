@@ -67,6 +67,7 @@ class Client:
             try:
                 msg = self.server.recv(1024).decode()
                 if msg:
+                    print(f"Received message: {msg}")
                     self.show_message(msg)
                     pyperclip.copy(msg)
             except ConnectionResetError:
@@ -77,6 +78,7 @@ class Client:
                 break
 
     def show_message(self, msg, on_close=None):
+        print(f"Received message: {msg}")
         # Set window size based on message length
         avg_width = 50
         extra_space = 50
