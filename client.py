@@ -4,25 +4,27 @@ import threading
 import pyperclip
 import os
 from pystray import Icon as icon, MenuItem as item, Menu as menu
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageTk
 import time
 
 def create_image():
-    image = Image.new('RGB', (64, 64), color=(0, 0, 0))
-    d = ImageDraw.Draw(image)
-    d.rectangle([8, 8, 56, 56], fill=(10, 186, 181)) # blue
+    image = Image.open("./appicon.jpg")
     return image
 
 class Client:
     def __init__(self, host, port=12345):
         
         # Configure customtkinter appearance
-        ctk.set_appearance_mode("dark")  # Modes: "System" (default), "Dark", "Light"
-        ctk.set_default_color_theme("blue")  # Themes: "blue" (default), "green", "dark-blue"
+        ctk.set_appearance_mode("System")  # Modes: "System" (default), "Dark", "Light"
+        ctk.set_default_color_theme("green")  # Themes: "blue" (default), "green", "dark-blue"
         
         self.root = ctk.CTk()
         self.root.title("Client")
         self.root.geometry("300x200")
+        
+        # Set window icon
+        self.root.iconbitmap("./appicon.ico")
+        
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         
         while True:
@@ -80,6 +82,8 @@ class Client:
     def show_message(self, msg, on_close=None):
         print(f"Received message: {msg}")
         # Set window size based on message length
+        
+        
         avg_width = 50
         extra_space = 50
         min_width = 100
@@ -102,6 +106,7 @@ class Client:
     
     def send_message(self):
         dialog = ctk.CTkInputDialog(title="Send Message", text="Enter your message:")
+
         msg = dialog.get_input()
         if msg:
             self.server.send(msg.encode())
