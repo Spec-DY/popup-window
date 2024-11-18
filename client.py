@@ -1,5 +1,5 @@
 import socket
-from tkinter import simpledialog, Toplevel, Button, Tk, Label, font
+import customtkinter as ctk
 import threading
 import pyperclip
 import os
@@ -15,9 +15,14 @@ def create_image():
 
 class Client:
     def __init__(self, host, port=12345):
-        self.root = Tk()
+        
+        # Configure customtkinter appearance
+        ctk.set_appearance_mode("dark")  # Modes: "System" (default), "Dark", "Light"
+        ctk.set_default_color_theme("blue")  # Themes: "blue" (default), "green", "dark-blue"
+        
+        self.root = ctk.CTk()
         self.root.title("Client")
-        self.root.geometry("200x140")
+        self.root.geometry("300x200")
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         
         while True:
@@ -27,8 +32,9 @@ class Client:
             except (ConnectionRefusedError, OSError):
                 time.sleep(10)
 
-        Button(self.root, text="Send Message", command=self.send_message).pack(pady=20)
-        Button(self.root, text="Close", command=self.shutdown).pack(pady=10)
+        ctk.CTkLabel(self.root, text="Message Client", font=("Arial", 18)).pack(pady=20)
+        ctk.CTkButton(self.root, text="Send Message", command=self.send_message).pack(pady=10)
+        ctk.CTkButton(self.root, text="Close", command=self.shutdown).pack(pady=10)
 
         self.root.protocol("WM_DELETE_WINDOW", self.shutdown)
         self.root.bind("<Unmap>", self.on_minimize)
@@ -71,22 +77,30 @@ class Client:
                 break
 
     def show_message(self, msg, on_close=None):
-        # set window size
+        # Set window size based on message length
         avg_width = 50
-        extra_space = 10
-        window_size = avg_width*len(msg)+extra_space
-        alert_window = Toplevel(self.root)
+        extra_space = 50
+        min_width = 100
+        screen_width = self.root.winfo_screenwidth()  # Get the user's screen width
+        max_width = screen_width - 100
+        
+        calculated_width = avg_width * len(msg) + extra_space
+        window_width = max(min_width, min(calculated_width, max_width))
+        window_height = 170
+        
+        alert_window = ctk.CTkToplevel(self.root)
         alert_window.title("Received Message")
-        alert_window.geometry(f"{window_size}x170")
+        alert_window.geometry(f"{window_width}x{window_height}")
         alert_window.attributes('-topmost', True)
         
-        message_font = font.Font(family="Arial Black", size=40, weight="bold")
-
-        Label(alert_window, text=msg, font=message_font, padx=20, pady=20, fg="red").pack()
-        Button(alert_window, text="OK", command=lambda: [alert_window.destroy(), on_close() if on_close else None]).pack(pady=10)
-
+        scrollable_frame = ctk.CTkScrollableFrame(alert_window, width=window_width, height= window_height - 60)
+        scrollable_frame.pack(pady=10, padx=10, fill="both", expand=True)
+        
+        ctk.CTkLabel(scrollable_frame, text=msg, font=("Arial Black", 46), text_color="red", wraplength=window_width - 40).pack(pady=10, padx=10, fill="both", expand=True)
+    
     def send_message(self):
-        msg = simpledialog.askstring("Input", "Enter your message:")
+        dialog = ctk.CTkInputDialog(title="Send Message", text="Enter your message:")
+        msg = dialog.get_input()
         if msg:
             self.server.send(msg.encode())
 
@@ -112,7 +126,8 @@ def load_ip_address():
 def main():
     host = load_ip_address()
     if host is None:
-        host = simpledialog.askstring("Target", "Enter host IP address:")
+        dialog = ctk.CTkInputDialog(title="Server IP", text="Enter server IP address:")
+        host = dialog.get_input()
         save_ip_address(host)
     client = Client(host)
 

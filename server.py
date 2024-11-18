@@ -1,132 +1,93 @@
 import socket
-from tkinter import simpledialog, Toplevel, Button, Tk, Label, font
 import threading
-import pyperclip
-import os
-from pystray import Icon as icon, MenuItem as item, Menu as menu
-from PIL import Image, ImageDraw
-PINK = (255, 105, 180)
-TITLE = "Server"
-
-
-def create_image():
-    image = Image.new('RGB', (64, 64), color=(0, 0, 0))
-    d = ImageDraw.Draw(image)
-    d.rectangle([8, 8, 56, 56], fill=PINK) # pink
-    return image
+import signal
+import sys
 
 class Server:
     def __init__(self, host="0.0.0.0", port=12345):
-        self.root = Tk()
-        self.root.title(TITLE)
-        self.root.geometry("200x140")
-        # List to store client connections
         self.clients = []
         self.running = True
-
+        
         # Socket setup
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.bind((host, port))
-        self.server.listen(1)
-        print(f"Server is listening on localhost:{port}")
+        self.server.listen()
+        print(f"Server is listening on {host}:{port}")
+        
+        # Setup signal handler
+        signal.signal(signal.SIGINT, self.signal_handler)
+        
+        # Start accepting connections in a separate thread
+        self.accept_thread = threading.Thread(target=self.accept_connections)
+        self.accept_thread.start()
+        
+        # Wait for commands
+        while self.running:
+            cmd = input().strip().lower()
+            if cmd == 'quit' or cmd == 'exit':
+                self.close_server()
+                break
 
-        # Start the thread for accepting connections
-        threading.Thread(target=self.accept_connections).start()
-
-        # GUI for sending messages
-        Button(self.root, text="Send Message", command=self.send_message).pack(pady=20)
-        Button(self.root, text="Close Server", command=self.close_server).pack(pady=20)
-        # window close button
-        self.root.protocol("WM_DELETE_WINDOW", self.close_server)
-        self.root.bind("<Unmap>", self.on_minimize)
-        self.setup_tray_icon()
-        self.icon.run_detached()
-        # threading.Thread(target=self.receive_message, daemon=True).start() 
-
-        self.root.mainloop()
-    
-    def setup_tray_icon(self):
-        self.icon = icon("Server",
-                         create_image(),
-                         menu=menu(item('Show Window', lambda: self.show_window())))
-    
-    def on_minimize(self, event=None):
-        if self.root.state() == 'iconic':
-            self.root.withdraw()
-            self.icon.visible = True
-
-    def show_window(self):
-        self.root.deiconify()
-        self.root.lift()
-        self.root.focus_force()
-        self.icon.visible = False
+    def signal_handler(self, sig, frame):
+        print("\nShutting down server...")
+        self.close_server()
+        sys.exit(0)
 
     def accept_connections(self):
+        self.server.settimeout(1)  # Add timeout to accept()
         while self.running:
             try:
                 client, address = self.server.accept()
-                if self.running:
-                    # Add client to the list
-                    self.clients.append(client)
-                    print(f"Connected with {address}")
-                    threading.Thread(target=self.handle_client, args=(client,)).start()
+                self.clients.append(client)
+                print(f"Connected with {address}")
+                threading.Thread(target=self.handle_client, args=(client,)).start()
             except socket.timeout:
-                continue
-            except OSError:
+                continue  # Check running flag every second
+            except Exception as e:
+                print(f"Accept error: {e}")
                 break
 
     def handle_client(self, client):
-        while True:
+        while self.running:
             try:
                 msg = client.recv(1024).decode()
                 if msg:
-                    self.show_message(msg)
-                    pyperclip.copy(msg)
+                    self.broadcast(msg, client)
                 else:
-                    client.close()
-                    # Remove client from the list
-                    self.clients.remove(client)
+                    self.remove_client(client)
                     break
-            except ConnectionResetError:
-                self.clients.remove(client)
+            except:
+                self.remove_client(client)
                 break
 
-    def show_message(self, msg, on_close=None):
-        # set window size
-        avg_width = 50
-        extra_space = 10
-        window_size = avg_width*len(msg)+extra_space
-        alert_window = Toplevel(self.root)
-        alert_window.title("Received Message")
-        alert_window.geometry(f"{window_size}x170")
+    def broadcast(self, message, sender):
+        for client in self.clients[:]:  # Use a copy of the list
+            if client != sender:
+                try:
+                    client.send(message.encode())
+                except:
+                    self.remove_client(client)
 
-        # keep window on top
-        alert_window.attributes('-topmost', True)
-
-        message_font = font.Font(family="Arial Black", size=40, weight="bold")
-
-        # Display the message with the custom font
-        Label(alert_window, text=msg, font=message_font, padx=20, pady=20, fg="red").pack()
-        Button(alert_window, text="OK", command=lambda: [alert_window.destroy(), on_close() if on_close else None]).pack(pady=10)
-
-    def send_message(self):
-        msg = simpledialog.askstring("Input", "Enter your message:")
-        if msg:
-            # Send message to all connected clients
-            for client in self.clients:
-                client.send(msg.encode())
+    def remove_client(self, client):
+        if client in self.clients:
+            self.clients.remove(client)
+            try:
+                client.close()
+            except:
+                pass
 
     def close_server(self):
         self.running = False
-        for client in self.clients:
-            client.close()
-        self.icon.stop()
+        # Close all client connections
+        for client in self.clients[:]:
+            self.remove_client(client)
+        # Close server socket
         try:
             self.server.close()
-        except Exception as e:
-            print(f"Error closing socket: {str(e)}")
-        finally:
-            self.root.destroy()
+        except:
+            pass
+        print("Server closed")
 
 if __name__ == "__main__":
+    print("Server started. Type 'quit' or 'exit' to stop the server.")
     server = Server()
