@@ -10,7 +10,7 @@
 ### Installation:
 
 1. Run `server.py` in your home server (e.g. Raspberry pi)
-2. Find `client.exe` in Release and run on any Windows PC
+2. Find `client.exe` in Releases and run on any Windows PC
 3. Enter your server IP address in client end (only required by first time).
 
 ### Persistent server.py
