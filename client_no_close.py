@@ -8,7 +8,6 @@ from PIL import Image, ImageDraw, ImageTk
 import time
 import sys
 
-
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
     try:
@@ -19,11 +18,9 @@ def resource_path(relative_path):
 
     return os.path.join(base_path, relative_path)
 
-
 def create_image():
     image = Image.open(resource_path("appicon.jpg"))
     return image
-
 
 def get_appdata_path():
     """ Get the path to the application data directory """
@@ -34,7 +31,6 @@ def get_appdata_path():
     if not os.path.exists(appdata_path):
         os.makedirs(appdata_path)
     return appdata_path
-
 
 class Client:
     def __init__(self, host, port=12345):
@@ -61,16 +57,19 @@ class Client:
 
         ctk.CTkLabel(self.root, text="Message Client", font=("Arial", 18)).pack(pady=20)
         ctk.CTkButton(self.root, text="Send Message", command=self.send_message).pack(pady=10)
-        ctk.CTkButton(self.root, text="Close", command=self.shutdown).pack(pady=10)
 
-        self.root.protocol("WM_DELETE_WINDOW", self.shutdown)
+        self.root.protocol("WM_DELETE_WINDOW", self.disable_close)
         self.root.bind("<Unmap>", self.on_minimize)
+    
 
         self.setup_tray_icon()
         self.icon.run_detached()  # Start the tray icon in a detached thread immediately
 
         threading.Thread(target=self.receive_message, daemon=True).start()  # Start the receiver thread as a daemon
         self.root.mainloop()
+        
+    def disable_close(self):
+        pass
 
     def setup_tray_icon(self):
         self.icon = icon("Client",
@@ -152,10 +151,10 @@ class Client:
             text="Reply",
             command=self.send_message
         ).pack(pady=(5,0))  # Top padding only
-        
+    
     def send_message(self):
         dialog = ctk.CTkInputDialog(title="Send Message", text="Enter your message:")
-        
+
         # Get screen width and height
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
@@ -177,7 +176,7 @@ class Client:
 
     def shutdown(self):
         self.icon.stop()
-        try: 
+        try:
             self.server.close()
         except Exception as e:
             print(f"Error closing socket: {str(e)}")
