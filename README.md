@@ -50,7 +50,7 @@ StandardError=append:/var/log/homechat.log
 WantedBy=multi-user.target
 ```
 
-Replace `/path/to/your/server.py` with the actual path to your generated server executable. Replace `/path/to/your/working/directory` with the directory where your server should run. Replace `yourusername` with actual username.
+Replace `/path/to/your/server.py` with the actual path to your server.py actual path. For me this is: `/home/specdy/HomeMalwarePopups/server.py`. <br>Replace `/path/to/your/working/directory` with the directory where your server should run. For me this is: `/home/specdy/HomeMalwarePopups`. <br>Replace `yourusername` with actual username.
 
 ##### Step 2: Enable and Start the Service
 
