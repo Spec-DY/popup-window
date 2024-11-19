@@ -155,6 +155,21 @@ class Client:
     def send_message(self):
         dialog = ctk.CTkInputDialog(title="Send Message", text="Enter your message:")
 
+        # Get screen width and height
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        
+        # Get dialog window size (after it has been created)
+        dialog_width = dialog.winfo_width()
+        dialog_height = dialog.winfo_height()
+        
+        # Calculate position for the dialog window to be centered
+        x_offset = (screen_width - dialog_width) // 2
+        y_offset = (screen_height - dialog_height) // 2
+        
+        # Set the geometry of the dialog window
+        dialog.geometry(f"{x_offset}+{y_offset}")
+
         msg = dialog.get_input()
         if msg:
             self.server.send(msg.encode())
