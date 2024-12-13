@@ -4,26 +4,22 @@ import threading
 import pyperclip
 import os
 from pystray import Icon as icon, MenuItem as item, Menu as menu
-from PIL import Image, ImageDraw, ImageTk
+from PIL import Image
 import time
 import sys
-
+import json
 
 def resource_path(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
     try:
         # PyInstaller creates a temp folder and stores path in _MEIPASS
         base_path = sys._MEIPASS
     except Exception:
         base_path = os.path.abspath(".")
-
     return os.path.join(base_path, relative_path)
-
 
 def create_image():
     image = Image.open(resource_path("appicon.jpg"))
     return image
-
 
 def get_appdata_path():
     """ Get the path to the application data directory """
@@ -51,6 +47,7 @@ class Client:
         self.root.iconbitmap(resource_path("appicon.ico"))
         
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.connected_clients = []
         
         while True:
             try:
@@ -70,13 +67,67 @@ class Client:
         self.icon.run_detached()  # Start the tray icon in a detached thread immediately
 
         threading.Thread(target=self.receive_message, daemon=True).start()  # Start the receiver thread as a daemon
+        
+        # Minimize after 1 second
+        self.root.after(1000, self.auto_minimize)
+        
         self.root.mainloop()
+        
+    def auto_minimize(self):
+        self.root.withdraw()  # hide window
+        self.icon.visible = True  # display tray icon
 
     def setup_tray_icon(self):
         self.icon = icon("Client",
                          create_image(),
-                         menu=menu(item('Show Window', lambda: self.show_window())))
-                                   #item('Exit', lambda: self.shutdown())))
+                         title="Popups",
+                         menu=menu(
+                            item('Show', lambda: self.show_window()), 
+                            item('Exit', lambda: self.shutdown()))
+                         )
+
+    def update_clients_list(self, clients):
+        """Update the clients list in the UI"""
+        self.connected_clients = clients
+        self.clients_textbox.configure(state="normal")
+        self.clients_textbox.delete("1.0", "end")
+        for client in clients:
+            self.clients_textbox.insert("end", f"{client}\n")
+        self.clients_textbox.configure(state="disabled")
+
+    def handle_message(self, message_data):
+        """Handle different types of messages"""
+        try:
+            msg = json.loads(message_data)
+            msg_type = msg.get("type")
+            data = msg.get("data")
+            
+            if msg_type == "msg":
+                self.show_message(data)
+                pyperclip.copy(data)
+            elif msg_type == "client":
+                self.update_clients_list(data)
+            elif msg_type == "status":
+                print(f"Status received: {data}")
+                
+        except json.JSONDecodeError:
+            print(f"Error decoding message: {message_data}")
+        except Exception as e:
+            print(f"Error handling message: {e}")
+
+    def receive_message(self):
+        while True:
+            try:
+                msg = self.server.recv(1024).decode()
+                if msg:
+                    print(f"Received raw message: {msg}")
+                    self.handle_message(msg)
+            except ConnectionResetError:
+                self.shutdown()
+                break
+            except Exception as e:
+                print(f"Error receiving message: {e}")
+                break
 
     def on_minimize(self, event=None):
         if self.root.state() == 'iconic':
@@ -89,24 +140,8 @@ class Client:
         self.root.focus_force()
         self.icon.visible = False
 
-    def receive_message(self):
-        while True:
-            try:
-                msg = self.server.recv(1024).decode()
-                if msg:
-                    print(f"Received message: {msg}")
-                    self.show_message(msg)
-                    pyperclip.copy(msg)
-            except ConnectionResetError:
-                self.shutdown()
-                break
-            except Exception as e:
-                print(f"Error receiving message: {e}")
-                break
-
-    def show_message(self, msg, on_close=None):
-        print(f"Received message: {msg}")
-        # Set window size based on message length
+    def show_message(self, msg):
+        print(f"Showing message: {msg}")
         
         avg_width = 50
         extra_space = 50
@@ -176,19 +211,29 @@ class Client:
             self.server.send(msg.encode())
 
     def shutdown(self):
-        self.icon.stop()
+        # display window first
+        self.root.deiconify()
+
+        # close socket
         try: 
             self.server.close()
         except Exception as e:
             print(f"Error closing socket: {str(e)}")
-        finally:
-            self.root.destroy()
+            
+        # stop icon
+        if hasattr(self, 'icon'):
+            self.icon.stop()
+
+        # destroy window after 300ms
+        self.root.after(300, self.root.destroy)
+        
 
 def save_ip_address(ip):
     appdata_path = get_appdata_path()
     ip_file_path = os.path.join(appdata_path, "ip_address.txt")
     with open(ip_file_path, "w") as file:
         file.write(ip)
+
 
 def load_ip_address():
     appdata_path = get_appdata_path()
@@ -203,8 +248,10 @@ def main():
     if host is None:
         dialog = ctk.CTkInputDialog(title="Server IP", text="Enter server IP address:")
         host = dialog.get_input()
-        save_ip_address(host)
-    client = Client(host)
+        if host:  # only save if user entered something
+            save_ip_address(host)
+    if host:  # only create client if we have a host
+        client = Client(host)
 
 if __name__ == "__main__":
     main()
