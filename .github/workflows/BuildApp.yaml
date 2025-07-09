@@ -42,10 +42,76 @@ jobs:
           pip install pyinstaller
         shell: bash
 
+      - name: 🎨Create version file (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          $versionContent = @"
+          # UTF-8
+          VSVersionInfo(
+            ffi=FixedFileInfo(
+              mask=0x3f,
+              flags=0x0,
+              OS=0x40004,
+              fileType=0x1,
+              subtype=0x0,
+              date=(0, 0)
+            ),
+            kids=[
+              StringFileInfo(
+                [
+                  StringTable(
+                    u'040904B0',
+                    [
+                      StringStruct(u'CompanyName', u'Spec-DY'),
+                      StringStruct(u'FileDescription', u'Popup Window Like Malware'),
+                      StringStruct(u'InternalName', u'client'),
+                      StringStruct(u'LegalCopyright', u'Copyright (C) 2025 Spec-DY'),
+                      StringStruct(u'OriginalFilename', u'client.exe'),
+                      StringStruct(u'ProductName', u'Popups'),
+                    ]
+                  )
+                ]
+              ),
+              VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
+            ]
+          )
+          "@
+          New-Item -Path "client/util" -ItemType Directory -Force
+          Set-Content -Path "client/util/version.txt" -Value $versionContent -Encoding UTF8
+          Write-Output "✅ Version file created at client/util/version.txt"
+        shell: pwsh
+
       - name: 🌭Build the app (Windows)
         if: matrix.os == 'windows-latest'
         run: |
           pyinstaller --onefile --noconsole --version-file=client/util/version.txt --add-data "client/assets/appicon.ico;." --add-data "client/assets/appicon.jpg;." --icon client/assets/appicon.jpg client/client.py
+          Write-Output "✅ Executable built successfully"
+        shell: pwsh
+
+      - name: 🔐Sign executable (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          Write-Output "🔐 Creating self-signed certificate (3 years validity)..."
+          $cert = New-SelfSignedCertificate -DnsName "Spec-DY" -Type CodeSigning -CertStoreLocation cert:\CurrentUser\My -NotAfter (Get-Date).AddYears(3)
+          Write-Output "Certificate created: $($cert.Subject)"
+          Write-Output "Certificate valid until: $($cert.NotAfter)"
+
+          Write-Output "🔐 Signing executable..."
+          Set-AuthenticodeSignature -FilePath "dist/client.exe" -Certificate $cert
+
+          Write-Output "🔐 Verifying signature..."
+          $signature = Get-AuthenticodeSignature -FilePath "dist/client.exe"
+          Write-Output "Signature status: $($signature.Status)"
+          Write-Output "Signer: $($signature.SignerCertificate.Subject)"
+          Write-Output "Signature valid until: $($signature.SignerCertificate.NotAfter)"
+
+          if ($signature.Status -eq "Valid") {
+            Write-Output "✅ File signed successfully with 3-year certificate"
+          } else {
+            Write-Output "❌ Signature verification failed"
+            exit 1
+          }
+        shell: pwsh
 
       - name: 🍬Build the app (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
