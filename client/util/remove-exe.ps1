@@ -15,9 +15,9 @@ if (Test-Path ./dist/client.exe) {
 }
 
 try {
-    Remove-Item -r dist -ErrorAction SilentlyContinue
-    Remove-Item -r build -ErrorAction SilentlyContinue
-    Remove-Item client.spec -ErrorAction SilentlyContinue
+    Remove-Item -r ./dist -ErrorAction SilentlyContinue
+    Remove-Item -r ./build -ErrorAction SilentlyContinue
+    Remove-Item ./client.spec -ErrorAction SilentlyContinue
 }
 catch {
     Write-Output "No build files to remove"
