@@ -7,13 +7,14 @@ on:
     paths:
       - "client-mobile/**"
       - ".github/workflows/BuildApk.yaml"
-
 permissions:
   contents: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client-mobile
     steps:
       - name: 🏗 Setup repo
         uses: actions/checkout@v4
@@ -32,22 +33,21 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: 📦 Install dependencies
-        run: |
-          cd client-mobile
-          npm install
+        run: npm install
 
       - name: 🔧 Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
+        working-directory: /
 
       - name: 🍭Generate timestamp version
         id: version
         run: |
           VERSION="v$(date +'%Y.%m.%d-%H%M%S')"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+        working-directory: /
 
       - name: 🚀 Build app and get download URL
         run: |
-          cd client-mobile
           echo "=== Building app with JSON output ==="
           eas build --platform android --profile production --non-interactive --json > build_output.json
           echo "=== Build output ==="
@@ -65,10 +65,10 @@ jobs:
         run: |
           echo "=== Downloading APK ==="
           echo "Build URL: $BUILD_URL"
-          curl -L -o popups-${{ steps.version.outputs.version }}.apk "$BUILD_URL"
+          curl -L -o ../popups-${{ steps.version.outputs.version }}.apk "$BUILD_URL"
           echo "✅ Downloaded APK successfully"
-          if [ -f popups-${{ steps.version.outputs.version }}.apk ]; then
-            echo "✅ APK file size: $(ls -lh popups-${{ steps.version.outputs.version }}.apk | awk '{print $5}')"
+          if [ -f ../popups-${{ steps.version.outputs.version }}.apk ]; then
+            echo "✅ APK file size: $(ls -lh ../popups-${{ steps.version.outputs.version }}.apk | awk '{print $5}')"
           else
             echo "❌ APK download failed"
             exit 1
@@ -81,7 +81,6 @@ jobs:
           name: Release ${{ steps.version.outputs.version }}
           body: |
             🚀 **Multi-Platform Release**
-
             Automatically built and released from commit ${{ github.sha }}
 
             ## 📋 Server Setup
@@ -102,7 +101,6 @@ jobs:
             4. Configure server address in the app
 
             ## 📦 Available Downloads
-
             - **Windows Desktop**: `client-${{ steps.version.outputs.version }}-windows.exe`
             - **Linux Desktop**: `client-${{ steps.version.outputs.version }}-ubuntu`
             - **Android Mobile**: `popups-${{ steps.version.outputs.version }}.apk`
