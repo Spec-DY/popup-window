@@ -1,50 +1,82 @@
-name: Build and Release APK
-run-name: ${{github.actor}} is building and releasing APK
+name: Build Pyinstaller Client App
 on:
   push:
     branches:
       - main
     paths:
-      - "client-mobile/**"
-      - ".github/workflows/BuildApk.yaml"
+      - "client/**"
+      - ".github/workflows/BuildApp.yaml"
+
 permissions:
   contents: write
+
+# build job
 jobs:
   build:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: client-mobile
+    runs-on: ${{ matrix.os }}
+    name: Build Client App (${{ matrix.os }})
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
     steps:
-      - name: 🏗 Setup repo
+      - name: 🍗Checkout code
         uses: actions/checkout@v4
-
-      - name: 🏗 Setup Node
-        uses: actions/setup-node@v3
+      - name: 🍎Set up Python
+        uses: actions/setup-python@v5
         with:
-          node-version: 18.x
-          cache: npm
-          cache-dependency-path: client-mobile/package-lock.json
+          python-version: "3.12"
 
-      - name: 🏗 Setup EAS
-        uses: expo/expo-github-action@v8
+      - name: 🍟Install dependencies (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          python -m pip install --upgrade pip
+          if (Test-Path "client/requirements.txt") { pip install -r client/requirements.txt }
+          pip install pyinstaller
+        shell: pwsh
+
+      - name: 🍟Install dependencies (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f client/requirements.txt ]; then pip install -r client/requirements.txt; fi
+          pip install pyinstaller
+        shell: bash
+
+      - name: 🌭Build the app (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          pyinstaller --onefile --noconsole --add-data "client/assets/appicon.ico;." --add-data "client/assets/appicon.jpg;." --icon client/assets/appicon.ico client/client.py
+
+      - name: 🍬Build the app (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          pyinstaller --onefile --add-data "client/assets/appicon.ico:." --add-data "client/assets/appicon.jpg:." client/client.py
+
+      - name: 🍩Upload artifacts
+        uses: actions/upload-artifact@v4
         with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
+          name: client-${{ matrix.os }}
+          path: ./dist/
+          retention-days: 7
 
-      - name: 📦 Install dependencies
-        run: npm install
-
-      - name: 🔧 Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
-        working-directory: /
+  # release job
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🍗Checkout code (for server.py)
+        uses: actions/checkout@v4
 
       - name: 🍭Generate timestamp version
         id: version
         run: |
           VERSION="v$(date +'%Y.%m.%d-%H%M%S')"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-        working-directory: /
+
+      - name: 📥Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
 
       - name: 📥Download existing release assets
         id: download_existing
@@ -52,15 +84,18 @@ jobs:
           echo "🔍 Checking for existing release..."
           LATEST_RELEASE=$(curl -s "https://api.github.com/repos/${{ github.repository }}/releases/latest" || echo "{}")
 
-          # 检查是否有现有 release
           if [ "$(echo $LATEST_RELEASE | jq -r '.message')" != "Not Found" ]; then
             echo "✅ Found existing release, downloading assets..."
             
-            # 创建临时目录
             mkdir -p ./existing-assets
             
-            # 下载现有的桌面客户端文件和服务器文件
-            echo $LATEST_RELEASE | jq -r '.assets[] | select(.name | contains("client-") or contains("server.py")) | .browser_download_url' | while read url; do
+            APK_URL=$(echo $LATEST_RELEASE | jq -r '.assets[] | select(.name | contains(".apk")) | .browser_download_url')
+            if [ "$APK_URL" != "null" ] && [ -n "$APK_URL" ]; then
+              echo "📱 Downloading existing APK..."
+              curl -L -o "./existing-assets/$(basename $(echo $APK_URL))" "$APK_URL"
+            fi
+            
+            echo $LATEST_RELEASE | jq -r '.assets[] | select(.name | contains("server.py")) | .browser_download_url' | while read url; do
               if [ -n "$url" ]; then
                 echo "📥 Downloading: $(basename $url)"
                 curl -L -o "./existing-assets/$(basename $url)" "$url"
@@ -72,56 +107,31 @@ jobs:
             echo "ℹ️ No existing release found"
             echo "existing_files=false" >> $GITHUB_OUTPUT
           fi
-        working-directory: /
 
-      - name: 🚀 Build app and get download URL
-        run: |
-          echo "=== Building app with JSON output ==="
-          eas build --platform android --profile production --non-interactive --json > build_output.json
-          echo "=== Build output ==="
-          cat build_output.json
-          BUILD_URL=$(jq -r '.[0].artifacts.buildUrl' build_output.json)
-          if [ "$BUILD_URL" != "null" ] && [ -n "$BUILD_URL" ]; then
-            echo "✅ Found build URL: $BUILD_URL"
-            echo "BUILD_URL=$BUILD_URL" >> $GITHUB_ENV
-          else
-            echo "❌ No build URL found in output"
-            exit 1
-          fi
-
-      - name: 📥 Download APK
-        run: |
-          echo "=== Downloading APK ==="
-          echo "Build URL: $BUILD_URL"
-          curl -L -o ../popups-${{ steps.version.outputs.version }}.apk "$BUILD_URL"
-          echo "✅ Downloaded APK successfully"
-          if [ -f ../popups-${{ steps.version.outputs.version }}.apk ]; then
-            echo "✅ APK file size: $(ls -lh ../popups-${{ steps.version.outputs.version }}.apk | awk '{print $5}')"
-          else
-            echo "❌ APK download failed"
-            exit 1
-          fi
-
-      - name: 🍩Prepare release files
+      - name: 🍩Rename and prepare files
         run: |
           mkdir -p ./release
 
-          # 复制现有文件（如果有）
           if [ "${{ steps.download_existing.outputs.existing_files }}" == "true" ]; then
             cp -r ./existing-assets/* ./release/ 2>/dev/null || true
           fi
 
-          # 添加新的 APK 文件（覆盖旧版本）
-          if [ -f ./popups-${{ steps.version.outputs.version }}.apk ]; then
-            cp ./popups-${{ steps.version.outputs.version }}.apk ./release/
+          if [ -f ./artifacts/client-windows-latest/client.exe ]; then
+            mv ./artifacts/client-windows-latest/client.exe ./release/client-${{ steps.version.outputs.version }}-windows.exe
+          fi
+          if [ -f ./artifacts/client-ubuntu-latest/client ]; then
+            mv ./artifacts/client-ubuntu-latest/client ./release/client-${{ steps.version.outputs.version }}-ubuntu
           fi
 
-          # 清理同名的旧 APK 文件
-          find ./release -name "popups-v*.apk" ! -name "popups-${{ steps.version.outputs.version }}.apk" -delete 2>/dev/null || true
+          if [ -f ./server.py ]; then
+            cp ./server.py ./release/server.py
+          fi
+
+          find ./release -name "client-v*-windows.exe" ! -name "client-${{ steps.version.outputs.version }}-windows.exe" -delete 2>/dev/null || true
+          find ./release -name "client-v*-ubuntu" ! -name "client-${{ steps.version.outputs.version }}-ubuntu" -delete 2>/dev/null || true
 
           echo "=== Final release files ==="
           ls -la ./release/
-        working-directory: /
 
       - name: 🍆Create Release and Upload Assets
         uses: softprops/action-gh-release@v1
@@ -130,12 +140,13 @@ jobs:
           name: Release ${{ steps.version.outputs.version }}
           body: |
             🚀 **Multi-Platform Release**
+
             Automatically built and released from commit ${{ github.sha }}
 
             ## 📋 Server Setup
             1. Clone repository and deploy `server.py` on your server
             2. Run `pip install -r requirements.txt` to install dependencies
-            3. Run `python server.py`
+            3. Run: `python3 server.py`
             4. Server will listen on port 12345 by default
 
             ## 💻 Desktop Clients
@@ -150,13 +161,12 @@ jobs:
             4. Configure server address in the app
 
             ## 📦 Available Downloads
+
             - **Windows Desktop**: `client-${{ steps.version.outputs.version }}-windows.exe`
             - **Linux Desktop**: `client-${{ steps.version.outputs.version }}-ubuntu`
             - **Android Mobile**: `popups-${{ steps.version.outputs.version }}.apk`
             - **Server**: Clone repository for `server.py`
 
           files: ./release/*
-          draft: false
-          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
