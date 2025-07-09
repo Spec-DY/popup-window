@@ -1,24 +1,24 @@
 if(!(Test-Path ./app)){
     mkdir ./app
 }else{
-    rm ./app/*
+    Remove-Item ./app/*
 }
 
-rm ./app/client.exe -ErrorAction SilentlyContinue
+Remove-Item ./app/client.exe -ErrorAction SilentlyContinue
 
 if (Test-Path ./dist/client.exe) {
-    mv ./dist/client.exe ./app/client.exe
-    echo "Moved new executable to app folder"
+    Move-Item ./dist/client.exe ./app/client.exe
+    Write-Output "Moved new executable to app folder"
 } else {
-    echo "No executable found"
+    Write-Output "No executable found"
 }
 
 try {
-    rm -r dist -ErrorAction SilentlyContinue
-    rm -r build -ErrorAction SilentlyContinue
-    rm client.spec -ErrorAction SilentlyContinue
+    Remove-Item -r dist -ErrorAction SilentlyContinue
+    Remove-Item -r build -ErrorAction SilentlyContinue
+    Remove-Item client.spec -ErrorAction SilentlyContinue
 }
 catch {
-    echo "No build files to remove"
+    Write-Output "No build files to remove"
 }
 
