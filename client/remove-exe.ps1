@@ -2,6 +2,7 @@ if(!(Test-Path ./app)){
     mkdir ./app
 }else{
     Remove-Item ./app/*
+    Write-Output "Cleared app folder"
 }
 
 Remove-Item ./app/client.exe -ErrorAction SilentlyContinue

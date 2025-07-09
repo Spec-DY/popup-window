@@ -5,6 +5,8 @@ on:
       - main
     paths:
       - "client/**"
+
+# build job
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -19,11 +21,22 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: 🍟Install dependencies
+
+      - name: 🍟Install dependencies (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          python -m pip install --upgrade pip
+          if (Test-Path "client/requirements.txt") { pip install -r client/requirements.txt }
+          pip install pyinstaller
+        shell: pwsh
+
+      - name: 🍟Install dependencies (Linux)
+        if: matrix.os == 'ubuntu-latest'
         run: |
           python -m pip install --upgrade pip
           if [ -f client/requirements.txt ]; then pip install -r client/requirements.txt; fi
           pip install pyinstaller
+        shell: bash
 
       - name: 🌭Build the app (Windows)
         if: matrix.os == 'windows-latest'
@@ -35,12 +48,6 @@ jobs:
         run: |
           pyinstaller --onefile --add-data "client/assets/appicon.ico:." --add-data "client/assets/appicon.jpg:." client/client.py
 
-      - name: 🍭Generate timestamp version
-        id: version
-        run: |
-          VERSION="v$(date +'%Y.%m.%d-%H%M%S')"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
       - name: 🍩Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -48,7 +55,7 @@ jobs:
           path: ./dist/
           retention-days: 7
 
-  # Release job
+  # release job
   release:
     needs: build
     runs-on: ubuntu-latest
@@ -59,7 +66,6 @@ jobs:
           VERSION="v$(date +'%Y.%m.%d-%H%M%S')"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      # download all artifacts from the build job
       - name: 📥Download artifacts
         uses: actions/download-artifact@v4
         with:
