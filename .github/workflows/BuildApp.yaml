@@ -45,7 +45,7 @@ jobs:
       - name: 🌭Build the app (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          pyinstaller --onefile --noconsole --add-data "client/assets/appicon.ico;." --add-data "client/assets/appicon.jpg;." --icon client/assets/appicon.ico client/client.py
+          pyinstaller --onefile --noconsole --version-file=client/util/version.txt --add-data "client/assets/appicon.ico;." --add-data "client/assets/appicon.jpg;." --icon client/assets/appicon.jpg client/client.py
 
       - name: 🍬Build the app (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
