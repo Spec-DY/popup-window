@@ -12,9 +12,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: client-mobile
     steps:
       - name: 🏗 Setup repo
         uses: actions/checkout@v4
@@ -33,18 +30,18 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: 📦 Install dependencies
-        run: npm install
+        run: |
+          cd client-mobile
+          npm install
 
       - name: 🔧 Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
-        working-directory: /
 
       - name: 🍭Generate timestamp version
         id: version
         run: |
           VERSION="v$(date +'%Y.%m.%d-%H%M%S')"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-        working-directory: /
 
       - name: 📥Download existing release assets
         id: download_existing
@@ -55,12 +52,12 @@ jobs:
           if [ "$(echo $LATEST_RELEASE | jq -r '.message')" != "Not Found" ]; then
             echo "✅ Found existing release, downloading assets..."
             
-            mkdir -p ../existing-assets
+            mkdir -p ./existing-assets
             
             echo $LATEST_RELEASE | jq -r '.assets[] | select(.name | contains("client-") or contains("server.py")) | .browser_download_url' | while read url; do
               if [ -n "$url" ]; then
                 echo "📥 Downloading: $(basename $url)"
-                curl -L -o "../existing-assets/$(basename $url)" "$url"
+                curl -L -o "./existing-assets/$(basename $url)" "$url"
               fi
             done
             
@@ -72,6 +69,7 @@ jobs:
 
       - name: 🚀 Build app and get download URL
         run: |
+          cd client-mobile
           echo "=== Building app with JSON output ==="
           eas build --platform android --profile production --non-interactive --json > build_output.json
           echo "=== Build output ==="
@@ -89,10 +87,10 @@ jobs:
         run: |
           echo "=== Downloading APK ==="
           echo "Build URL: $BUILD_URL"
-          curl -L -o ../popups-${{ steps.version.outputs.version }}.apk "$BUILD_URL"
+          curl -L -o popups-${{ steps.version.outputs.version }}.apk "$BUILD_URL"
           echo "✅ Downloaded APK successfully"
-          if [ -f ../popups-${{ steps.version.outputs.version }}.apk ]; then
-            echo "✅ APK file size: $(ls -lh ../popups-${{ steps.version.outputs.version }}.apk | awk '{print $5}')"
+          if [ -f popups-${{ steps.version.outputs.version }}.apk ]; then
+            echo "✅ APK file size: $(ls -lh popups-${{ steps.version.outputs.version }}.apk | awk '{print $5}')"
           else
             echo "❌ APK download failed"
             exit 1
@@ -100,20 +98,25 @@ jobs:
 
       - name: 🍩Prepare release files
         run: |
-          mkdir -p ../release
+          mkdir -p ./release
 
           if [ "${{ steps.download_existing.outputs.existing_files }}" == "true" ]; then
-            cp -r ../existing-assets/* ../release/ 2>/dev/null || true
+            cp -r ./existing-assets/* ./release/ 2>/dev/null || true
           fi
 
-          if [ -f ./popups-${{ steps.version.outputs.version }}.apk ]; then
-            cp ./popups-${{ steps.version.outputs.version }}.apk ../release/
+          if [ -f popups-${{ steps.version.outputs.version }}.apk ]; then
+            echo "📱 Copying APK to release directory..."
+            cp popups-${{ steps.version.outputs.version }}.apk ./release/
+            echo "✅ APK copied successfully"
+          else
+            echo "❌ APK file not found: popups-${{ steps.version.outputs.version }}.apk"
+            ls -la popups-*.apk 2>/dev/null || echo "No APK files found"
           fi
 
-          find ../release -name "popups-v*.apk" ! -name "popups-${{ steps.version.outputs.version }}.apk" -delete 2>/dev/null || true
+          find ./release -name "popups-v*.apk" ! -name "popups-${{ steps.version.outputs.version }}.apk" -delete 2>/dev/null || true
 
           echo "=== Final release files ==="
-          ls -la ../release/
+          ls -la ./release/
 
       - name: 🍆Create Release and Upload Assets
         uses: softprops/action-gh-release@v1
@@ -147,7 +150,7 @@ jobs:
             - **Android Mobile**: `popups-${{ steps.version.outputs.version }}.apk`
             - **Server**: Clone repository for `server.py`
 
-          files: ../release/*
+          files: ./release/*
           draft: false
           prerelease: false
         env:
