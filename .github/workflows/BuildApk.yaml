@@ -46,6 +46,34 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
         working-directory: /
 
+      - name: 📥Download existing release assets
+        id: download_existing
+        run: |
+          echo "🔍 Checking for existing release..."
+          LATEST_RELEASE=$(curl -s "https://api.github.com/repos/${{ github.repository }}/releases/latest" || echo "{}")
+
+          # 检查是否有现有 release
+          if [ "$(echo $LATEST_RELEASE | jq -r '.message')" != "Not Found" ]; then
+            echo "✅ Found existing release, downloading assets..."
+            
+            # 创建临时目录
+            mkdir -p ./existing-assets
+            
+            # 下载现有的桌面客户端文件和服务器文件
+            echo $LATEST_RELEASE | jq -r '.assets[] | select(.name | contains("client-") or contains("server.py")) | .browser_download_url' | while read url; do
+              if [ -n "$url" ]; then
+                echo "📥 Downloading: $(basename $url)"
+                curl -L -o "./existing-assets/$(basename $url)" "$url"
+              fi
+            done
+            
+            echo "existing_files=true" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️ No existing release found"
+            echo "existing_files=false" >> $GITHUB_OUTPUT
+          fi
+        working-directory: /
+
       - name: 🚀 Build app and get download URL
         run: |
           echo "=== Building app with JSON output ==="
@@ -73,6 +101,27 @@ jobs:
             echo "❌ APK download failed"
             exit 1
           fi
+
+      - name: 🍩Prepare release files
+        run: |
+          mkdir -p ./release
+
+          # 复制现有文件（如果有）
+          if [ "${{ steps.download_existing.outputs.existing_files }}" == "true" ]; then
+            cp -r ./existing-assets/* ./release/ 2>/dev/null || true
+          fi
+
+          # 添加新的 APK 文件（覆盖旧版本）
+          if [ -f ./popups-${{ steps.version.outputs.version }}.apk ]; then
+            cp ./popups-${{ steps.version.outputs.version }}.apk ./release/
+          fi
+
+          # 清理同名的旧 APK 文件
+          find ./release -name "popups-v*.apk" ! -name "popups-${{ steps.version.outputs.version }}.apk" -delete 2>/dev/null || true
+
+          echo "=== Final release files ==="
+          ls -la ./release/
+        working-directory: /
 
       - name: 🍆Create Release and Upload Assets
         uses: softprops/action-gh-release@v1
@@ -106,7 +155,7 @@ jobs:
             - **Android Mobile**: `popups-${{ steps.version.outputs.version }}.apk`
             - **Server**: Clone repository for `server.py`
 
-          files: popups-${{ steps.version.outputs.version }}.apk
+          files: ./release/*
           draft: false
           prerelease: false
         env:

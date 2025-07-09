@@ -7,6 +7,9 @@ on:
       - "client/**"
       - ".github/workflows/BuildApp.yaml"
 
+permissions:
+  contents: write
+
 # build job
 jobs:
   build:
@@ -61,6 +64,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - name: 🍗Checkout code (for server.py)
+        uses: actions/checkout@v4
+
       - name: 🍭Generate timestamp version
         id: version
         run: |
@@ -72,15 +78,68 @@ jobs:
         with:
           path: ./artifacts
 
+      - name: 📥Download existing release assets
+        id: download_existing
+        run: |
+          echo "🔍 Checking for existing release..."
+          LATEST_RELEASE=$(curl -s "https://api.github.com/repos/${{ github.repository }}/releases/latest" || echo "{}")
+
+          # check current release
+          if [ "$(echo $LATEST_RELEASE | jq -r '.message')" != "Not Found" ]; then
+            echo "✅ Found existing release, downloading assets..."
+            
+            # create directory for existing assets
+            mkdir -p ./existing-assets
+            
+            # download existing apk
+            APK_URL=$(echo $LATEST_RELEASE | jq -r '.assets[] | select(.name | contains(".apk")) | .browser_download_url')
+            if [ "$APK_URL" != "null" ] && [ -n "$APK_URL" ]; then
+              echo "📱 Downloading existing APK..."
+              curl -L -o "./existing-assets/$(basename $(echo $APK_URL))" "$APK_URL"
+            fi
+            
+            # download existing files except client executables
+            echo $LATEST_RELEASE | jq -r '.assets[] | select(.name | contains("server.py")) | .browser_download_url' | while read url; do
+              if [ -n "$url" ]; then
+                echo "📥 Downloading: $(basename $url)"
+                curl -L -o "./existing-assets/$(basename $url)" "$url"
+              fi
+            done
+            
+            echo "existing_files=true" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️ No existing release found"
+            echo "existing_files=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: 🍩Rename and prepare files
         run: |
           mkdir -p ./release
+
+          # copy current files 
+          if [ "${{ steps.download_existing.outputs.existing_files }}" == "true" ]; then
+            cp -r ./existing-assets/* ./release/ 2>/dev/null || true
+          fi
+
+          # add new python file to release directory
           if [ -f ./artifacts/client-windows-latest/client.exe ]; then
             mv ./artifacts/client-windows-latest/client.exe ./release/client-${{ steps.version.outputs.version }}-windows.exe
           fi
           if [ -f ./artifacts/client-ubuntu-latest/client ]; then
             mv ./artifacts/client-ubuntu-latest/client ./release/client-${{ steps.version.outputs.version }}-ubuntu
           fi
+
+          # add server.py file if it exists
+          if [ -f ./server.py ]; then
+            cp ./server.py ./release/server.py
+          fi
+
+          # clean up old files
+          find ./release -name "client-v*-windows.exe" ! -name "client-${{ steps.version.outputs.version }}-windows.exe" -delete 2>/dev/null || true
+          find ./release -name "client-v*-ubuntu" ! -name "client-${{ steps.version.outputs.version }}-ubuntu" -delete 2>/dev/null || true
+
+          echo "=== Final release files ==="
+          ls -la ./release/
 
       - name: 🍆Create Release and Upload Assets
         uses: softprops/action-gh-release@v1
