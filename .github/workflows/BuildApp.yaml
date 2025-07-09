@@ -1,0 +1,85 @@
+name: Build Pyinstaller Client App
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "client/**"
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    name: Build Client App (${{ matrix.os }})
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - name: 🍗Checkout code
+        uses: actions/checkout@v4
+      - name: 🍎Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 🍟Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f client/requirements.txt ]; then pip install -r client/requirements.txt; fi
+          pip install pyinstaller
+
+      - name: 🌭Build the app (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          pyinstaller --onefile --noconsole --add-data "client/assets/appicon.ico;." --add-data "client/assets/appicon.jpg;." --icon client/assets/appicon.ico client/client.py
+
+      - name: 🍬Build the app (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          pyinstaller --onefile --add-data "client/assets/appicon.ico:." --add-data "client/assets/appicon.jpg:." client/client.py
+
+      - name: 🍭Generate timestamp version
+        id: version
+        run: |
+          VERSION="v$(date +'%Y.%m.%d-%H%M%S')"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: 🍩Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-${{ matrix.os }}
+          path: ./dist/
+          retention-days: 7
+
+  # Release job
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🍭Generate timestamp version
+        id: version
+        run: |
+          VERSION="v$(date +'%Y.%m.%d-%H%M%S')"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      # download all artifacts from the build job
+      - name: 📥Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: 🍩Rename and prepare files
+        run: |
+          mkdir -p ./release
+          if [ -f ./artifacts/client-windows-latest/client.exe ]; then
+            mv ./artifacts/client-windows-latest/client.exe ./release/client-${{ steps.version.outputs.version }}-windows.exe
+          fi
+          if [ -f ./artifacts/client-ubuntu-latest/client ]; then
+            mv ./artifacts/client-ubuntu-latest/client ./release/client-${{ steps.version.outputs.version }}-ubuntu
+          fi
+
+      - name: 🍆Create Release and Upload Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Release ${{ steps.version.outputs.version }}
+          files: ./release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

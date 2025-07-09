@@ -1,5 +1,4 @@
 ip_address.txt
-*.json
-*.log
-/exe
-/icon
+/server/*.json
+/server/*.log
+/client/app
