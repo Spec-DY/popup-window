@@ -5,6 +5,7 @@ on:
       - main
     paths:
       - "client/**"
+      - ".github/workflows/BuildApp.yaml"
 
 # build job
 jobs:
@@ -86,6 +87,35 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.version }}
           name: Release ${{ steps.version.outputs.version }}
+          body: |
+            🚀 **Multi-Platform Release**
+
+            Automatically built and released from commit ${{ github.sha }}
+
+            ## 📋 Server Setup
+            1. Clone repository and deploy `server.py` on your server
+            2. Run `pip install -r requirements.txt` to install dependencies
+            3. Run: `python3 server.py`
+            4. Server will listen on port 12345 by default
+
+            ## 💻 Desktop Clients
+            1. Download the appropriate client for your OS
+            2. Run the executable
+            3. If server and client are on same device, use `127.0.0.1` as server address
+
+            ## 📱 Mobile App (Android)
+            1. Download the APK file
+            2. Enable "Install from unknown sources" in Android settings
+            3. Install the APK on your device
+            4. Configure server address in the app
+
+            ## 📦 Available Downloads
+
+            - **Windows Desktop**: `client-${{ steps.version.outputs.version }}-windows.exe`
+            - **Linux Desktop**: `client-${{ steps.version.outputs.version }}-ubuntu`
+            - **Android Mobile**: `popups-${{ steps.version.outputs.version }}.apk`
+            - **Server**: Clone repository for `server.py`
+
           files: ./release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -2,3 +2,57 @@ ip_address.txt
 /server/*.json
 /server/*.log
 /client/app
+
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# Python Client
+client/__pycache__/
+client/*.pyc
+client/build/
+client/dist/
+client/*.log
+
+# Mobile Client (React Native/Expo)
+client-mobile/node_modules/
+client-mobile/.expo/
+client-mobile/dist/
+client-mobile/web-build/
+client-mobile/expo-env.d.ts
+
+# Native mobile files
+client-mobile/*.orig.*
+client-mobile/*.jks
+client-mobile/*.p8
+client-mobile/*.p12
+client-mobile/*.key
+client-mobile/*.mobileprovision
+
+# Metro bundler
+client-mobile/.metro-health-check*
+
+# Debug files
+client-mobile/npm-debug.*
+client-mobile/yarn-debug.*
+client-mobile/yarn-error.*
+
+# TypeScript
+client-mobile/*.tsbuildinfo
+
+# Environment files
+client-mobile/.env*.local
+
+# Server logs
+*.log
+message_logs.json
+
+# System files
+.DS_Store
+*.pem
+
+# Build artifacts
+build/
+dist/
+
+# IDE
+.vscode/
+.idea/

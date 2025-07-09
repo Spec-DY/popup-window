@@ -1,0 +1,115 @@
+name: Build and Release APK
+run-name: ${{github.actor}} is building and releasing APK
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "client-mobile/**"
+      - ".github/workflows/BuildAndRelease.yaml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🏗 Setup repo
+        uses: actions/checkout@v4
+
+      - name: 🏗 Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18.x
+          cache: npm
+          cache-dependency-path: client-mobile/package-lock.json
+
+      - name: 🏗 Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 📦 Install dependencies
+        run: |
+          cd client-mobile
+          npm install
+
+      - name: 🔧 Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: 🍭Generate timestamp version
+        id: version
+        run: |
+          VERSION="v$(date +'%Y.%m.%d-%H%M%S')"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: 🚀 Build app and get download URL
+        run: |
+          cd client-mobile
+          echo "=== Building app with JSON output ==="
+          eas build --platform android --profile production --non-interactive --json > build_output.json
+          echo "=== Build output ==="
+          cat build_output.json
+          BUILD_URL=$(jq -r '.[0].artifacts.buildUrl' build_output.json)
+          if [ "$BUILD_URL" != "null" ] && [ -n "$BUILD_URL" ]; then
+            echo "✅ Found build URL: $BUILD_URL"
+            echo "BUILD_URL=$BUILD_URL" >> $GITHUB_ENV
+          else
+            echo "❌ No build URL found in output"
+            exit 1
+          fi
+
+      - name: 📥 Download APK
+        run: |
+          echo "=== Downloading APK ==="
+          echo "Build URL: $BUILD_URL"
+          curl -L -o popups-${{ steps.version.outputs.version }}.apk "$BUILD_URL"
+          echo "✅ Downloaded APK successfully"
+          if [ -f popups-${{ steps.version.outputs.version }}.apk ]; then
+            echo "✅ APK file size: $(ls -lh popups-${{ steps.version.outputs.version }}.apk | awk '{print $5}')"
+          else
+            echo "❌ APK download failed"
+            exit 1
+          fi
+
+      - name: 🍆Create Release and Upload Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Release ${{ steps.version.outputs.version }}
+          body: |
+            🚀 **Multi-Platform Release**
+
+            Automatically built and released from commit ${{ github.sha }}
+
+            ## 📋 Server Setup
+            1. Clone repository and deploy `server.py` on your server
+            2. Run `pip install -r requirements.txt` to install dependencies
+            3. Run `python server.py`
+            4. Server will listen on port 12345 by default
+
+            ## 💻 Desktop Clients
+            1. Download the appropriate client for your OS
+            2. Run the executable
+            3. If server and client are on same device, use `127.0.0.1` as server address
+
+            ## 📱 Mobile App (Android)
+            1. Download the APK file
+            2. Enable "Install from unknown sources" in Android settings
+            3. Install the APK on your device
+            4. Configure server address in the app
+
+            ## 📦 Available Downloads
+
+            - **Windows Desktop**: `client-${{ steps.version.outputs.version }}-windows.exe`
+            - **Linux Desktop**: `client-${{ steps.version.outputs.version }}-ubuntu`
+            - **Android Mobile**: `popups-${{ steps.version.outputs.version }}.apk`
+            - **Server**: Clone repository for `server.py`
+
+          files: popups-${{ steps.version.outputs.version }}.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
