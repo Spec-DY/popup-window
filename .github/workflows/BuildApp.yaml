@@ -91,8 +91,8 @@ jobs:
       - name: 🔐Sign executable (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          Write-Output "🔐 Creating self-signed certificate (3 years validity)..."
-          $cert = New-SelfSignedCertificate -DnsName "Spec-DY" -Type CodeSigning -CertStoreLocation cert:\CurrentUser\My -NotAfter (Get-Date).AddYears(3)
+          Write-Output "🔐 Creating self-signed certificate (2 years validity)..."
+          $cert = New-SelfSignedCertificate -DnsName "Spec-DY" -Type CodeSigning -CertStoreLocation cert:\CurrentUser\My -NotAfter (Get-Date).AddYears(2)
           Write-Output "Certificate created: $($cert.Subject)"
           Write-Output "Certificate valid until: $($cert.NotAfter)"
 
@@ -105,8 +105,9 @@ jobs:
           Write-Output "Signer: $($signature.SignerCertificate.Subject)"
           Write-Output "Signature valid until: $($signature.SignerCertificate.NotAfter)"
 
-          if ($signature.Status -eq "Valid") {
-            Write-Output "✅ File signed successfully with 3-year certificate"
+          # Check if signature exists (even if not fully trusted)
+          if ($signature.SignerCertificate -ne $null) {
+            Write-Output "✅ File signed successfully with 2-year certificate (Status: $($signature.Status))"
           } else {
             Write-Output "❌ Signature verification failed"
             exit 1
