@@ -6,7 +6,7 @@ on:
       - main
     paths:
       - "client-mobile/**"
-      - ".github/workflows/BuildAndRelease.yaml"
+      - ".github/workflows/BuildApk.yaml"
 
 permissions:
   contents: write
