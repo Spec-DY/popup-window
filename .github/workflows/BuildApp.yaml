@@ -220,7 +220,6 @@ jobs:
 
             ## 📋 Server Setup
             1. Clone repository and deploy `server.py` on your server
-            2. Run `pip install -r requirements.txt` to install dependencies
             3. Run: `python3 server.py`
             4. Server will listen on port 12345 by default
 
