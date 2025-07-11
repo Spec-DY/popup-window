@@ -7,7 +7,10 @@ import {
   ScrollView,
   Modal,
   Alert,
+  StatusBar,
+  Platform,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import TcpSocket from "react-native-tcp-socket";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import Entypo from "@expo/vector-icons/Entypo";
@@ -28,6 +31,7 @@ export default function MainScreen() {
   const [receivedMessages, setReceivedMessages] = useState([]);
   const [connectedClients, setConnectedClients] = useState([]);
   const [showSettings, setShowSettings] = useState(false);
+  const [tempIP, setTempIP] = useState("");
   const rotation = useSharedValue(0);
 
   const [serverConfig, setServerConfig] = useState({
@@ -35,9 +39,10 @@ export default function MainScreen() {
     port: 12345,
   });
 
-  // temporary state for settings input
-  const [tempHost, setTempHost] = useState(serverConfig.host);
-  const [tempPort, setTempPort] = useState(serverConfig.port.toString());
+  const handleModal = () => {
+    console.log("handleModal called");
+    setShowSettings(!showSettings);
+  };
 
   // load from AsyncStorage
   const loadSettings = async () => {
@@ -47,59 +52,55 @@ export default function MainScreen() {
 
       if (savedHost) {
         setServerConfig((prev) => ({ ...prev, host: savedHost }));
-        setTempHost(savedHost);
       }
       if (savedPort) {
         const port = parseInt(savedPort);
         setServerConfig((prev) => ({ ...prev, port: port }));
-        setTempPort(savedPort);
       }
     } catch (error) {
       console.error("Failed to load settings:", error);
     }
   };
 
-  // saved to AsyncStorage
-  const saveSettings = async () => {
-    try {
-      const port = parseInt(tempPort);
-      if (isNaN(port) || port < 1 || port > 65535) {
-        Alert.alert("Error", "Port number must between 1-65535");
-        return;
-      }
+  const handleConfigUpdate = (newConfig) => {
+    setServerConfig(newConfig);
 
-      if (!tempHost.trim()) {
-        Alert.alert("Error", "Host cannot be empty");
-        return;
-      }
-
-      await AsyncStorage.setItem("serverHost", tempHost);
-      await AsyncStorage.setItem("serverPort", tempPort);
-
-      setServerConfig({
-        host: tempHost,
-        port: port,
-      });
-
-      setShowSettings(false);
-      Alert.alert("Success", "Settings saved successfully!");
-
-      // if connected, reconnect with new settings
-      if (client) {
-        client.destroy();
-        setIsConnected(false);
-        setStatus("Settings updated, reconnecting...");
-        setTimeout(() => {
-          connectToServer();
-        }, 1000);
-      }
-    } catch (error) {
-      console.error("Failed to save settings:", error);
-      Alert.alert("Error", "Failed to save settings: " + error.message);
+    // If connected, reconnect with new settings
+    if (client) {
+      client.destroy();
+      setIsConnected(false);
+      setStatus("Settings updated, reconnecting...");
+      setTimeout(() => {
+        connectToServer();
+      }, 1000);
     }
   };
 
-  // Parse concatenated JSON messages
+  const handleSaveIP = async () => {
+    if (!tempIP.trim()) {
+      Alert.alert("Error", "Host address cannot be empty");
+      return;
+    }
+
+    try {
+      await AsyncStorage.setItem("serverHost", tempIP);
+      const newConfig = {
+        host: tempIP,
+        port: serverConfig.port,
+      };
+      handleConfigUpdate(newConfig);
+      setShowSettings(false);
+      Alert.alert("Success", "Host address updated successfully!");
+    } catch (error) {
+      Alert.alert("Error", "Failed to save host address: " + error.message);
+    }
+  };
+
+  const openSettings = () => {
+    setTempIP(serverConfig.host);
+    setShowSettings(true);
+  };
+
   const parseMessages = (data) => {
     try {
       // Split concatenated JSON objects
@@ -231,172 +232,167 @@ export default function MainScreen() {
   }, [serverConfig]);
 
   return (
-    <View className="flex-1 p-6 bg-gray-50">
-      <View className="items-center bg-gray-50">
-        <View className="flex-row items-center justify-between w-full mb-4">
-          <View className="w-6" />
-          <Text className="text-3xl font-bold mt-4 mb-6">Popup Mobile</Text>
-          <Pressable
-            onPress={() => setShowSettings(true)}
-            className="mt-4 mb-6 p-2"
-            hitSlop={10}
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F3F4F6" }}>
+      <StatusBar
+        style="dark"
+        backgroundColor="transparent"
+        translucent={true}
+      />
+      <View className="flex-1 p-6">
+        <View className="items-center">
+          <View className="flex-row items-center justify-between w-full mb-4">
+            <View className="w-6" />
+            <Text className="text-3xl font-bold mt-4 mb-6">Popup Mobile</Text>
+            <Pressable
+              onPress={openSettings}
+              className="mt-4 mb-6 p-2"
+              hitSlop={10}
+            >
+              <FontAwesome name="cog" size={24} color="#666" />
+            </Pressable>
+          </View>
+
+          <Modal
+            animationType="slide"
+            transparent={true}
+            visible={showSettings}
+            onRequestClose={() => setShowSettings(false)}
           >
-            <FontAwesome name="cog" size={24} color="#666" />
+            <View className="flex-1 justify-center items-center bg-black/50">
+              <View className="bg-white rounded-lg p-6 w-4/5">
+                <Text className="text-xl font-bold mb-4">Server Settings</Text>
+                <Text className="text-base mb-2">Host Address:</Text>
+                <TextInput
+                  className="border border-gray-300 rounded-lg px-3 py-2 mb-4"
+                  value={tempIP}
+                  onChangeText={setTempIP}
+                  placeholder="Enter IP address or domain"
+                  keyboardType="default"
+                />
+                <View className="flex-row justify-between">
+                  <Pressable
+                    onPress={() => setShowSettings(false)}
+                    className="bg-gray-300 py-2 px-4 rounded-lg"
+                  >
+                    <Text className="text-base">Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={handleSaveIP}
+                    className="bg-blue-500 py-2 px-4 rounded-lg"
+                  >
+                    <Text className="text-base text-white">Save</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          </Modal>
+
+          <Pressable onPress={connectToServer} className="mt-6 mb-4">
+            <Entypo
+              name="icloud"
+              size={24}
+              color={isConnected ? "green" : "red"}
+            />
           </Pressable>
+          <Text
+            className={`mb-4 ${
+              isConnected ? "text-green-600" : "text-red-600"
+            }`}
+          >
+            {isConnected ? "Connected" : "Disconnected"}
+          </Text>
+          <Text className="text-xs text-gray-500 mb-6">
+            {serverConfig.host}:{serverConfig.port}
+          </Text>
         </View>
 
-        <Pressable onPress={connectToServer} className="mt-6 mb-4">
-          <Entypo
-            name="icloud"
-            size={24}
-            color={isConnected ? "green" : "red"}
+        <View className="relative flex-row mb-6">
+          <TextInput
+            className="flex-1 h-20 border border-gray-300 rounded-lg px-3 text-base"
+            value={message}
+            onChangeText={setMessage}
+            placeholder="Type your popup message here"
           />
-        </Pressable>
-        <Text
-          className={`mb-4 ${isConnected ? "text-green-600" : "text-red-600"}`}
-        >
-          {isConnected ? "Connected" : "Disconnected"}
-        </Text>
-        <Text className="text-xs text-gray-500 mb-6">
-          {serverConfig.host}:{serverConfig.port}
-        </Text>
-      </View>
-
-      <View className="relative flex-row mb-6">
-        <TextInput
-          className="flex-1 h-20 border border-gray-300 rounded-lg px-3 text-base"
-          value={message}
-          onChangeText={setMessage}
-          placeholder="Type your popup message here"
-        />
-        {message.length > 0 && (
-          <Pressable
-            onPress={() => setMessage("")}
-            className="absolute right-2 top-2 p-1"
-            hitSlop={10}
-          >
-            <FontAwesome name="times-circle" size={20} color="#666" />
-          </Pressable>
-        )}
-      </View>
-
-      <Pressable
-        onPress={sendMessage}
-        android_ripple={{ color: "#ccc", borderless: false }}
-        className={`py-3 px-4 rounded-lg ${
-          isConnected ? "bg-blue-500 active:bg-blue-700" : "bg-gray-400"
-        }`}
-        disabled={!isConnected}
-      >
-        <Text className="text-white text-center text-lg">Send</Text>
-      </Pressable>
-
-      <Text className="mt-4 mb-6 text-blue-700">{status}</Text>
-
-      {/* Connected Clients Section */}
-      <View className="mb-4 border border-gray-300 rounded-lg p-3 h-24">
-        <Text className="text-sm font-bold mb-2">Connected Clients:</Text>
-        <ScrollView>
-          {connectedClients.map((clientIP, index) => (
-            <Text key={index} className="text-sm text-gray-600">
-              {clientIP}
-            </Text>
-          ))}
-          {connectedClients.length === 0 && (
-            <Text className="text-sm text-gray-400 italic">
-              No other clients connected
-            </Text>
-          )}
-        </ScrollView>
-      </View>
-
-      {/* Messages Section */}
-      <View className="border border-gray-300 rounded-lg p-3 h-32">
-        <Text className="text-sm font-bold mb-2">Messages Received:</Text>
-        <View className="flex-1">
-          <ScrollView>
-            {receivedMessages.map((msg, index) => (
-              <Text key={index} className="text-sm text-gray-600">
-                {msg.content}
-                <Text className="text-xs text-gray-400">
-                  {" "}
-                  ({new Date(msg.timestamp).toLocaleTimeString()})
-                </Text>
-              </Text>
-            ))}
-          </ScrollView>
-          {receivedMessages.length > 0 && (
+          {message.length > 0 && (
             <Pressable
-              onPress={() => setReceivedMessages([])}
+              onPress={() => setMessage("")}
               className="absolute right-2 top-2 p-1"
               hitSlop={10}
             >
-              <FontAwesome6 name="trash-can" size={24} color="black" />
+              <FontAwesome name="times-circle" size={20} color="#666" />
             </Pressable>
           )}
         </View>
-      </View>
 
-      <View className="items-center mt-5">
         <Pressable
-          android_ripple={{ color: "#ccc", borderless: true }}
-          className="bg-white-500"
-          onPress={handleRefresh}
+          onPress={sendMessage}
+          android_ripple={{ color: "#ccc", borderless: false }}
+          className={`py-3 px-4 rounded-lg ${
+            isConnected ? "bg-blue-500 active:bg-blue-700" : "bg-gray-400"
+          }`}
+          disabled={!isConnected}
         >
-          <Animated.View style={animatedStyles}>
-            <FontAwesome name="refresh" size={80} color={"#000"} />
-          </Animated.View>
+          <Text className="text-white text-center text-lg">Send</Text>
         </Pressable>
-      </View>
 
-      {/* Settings Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={showSettings}
-        onRequestClose={() => setShowSettings(false)}
-      >
-        <View className="flex-1 justify-center items-center bg-black bg-opacity-50">
-          <View className="bg-white rounded-lg p-6 w-80 max-w-full">
-            <Text className="text-xl font-bold mb-4 text-center">
-              Server Settings
-            </Text>
+        <Text className="mt-4 mb-6 text-blue-700">{status}</Text>
 
-            <Text className="text-sm font-semibold mb-2">Host:</Text>
-            <TextInput
-              className="border border-gray-300 rounded-lg px-3 py-2 mb-4"
-              value={tempHost}
-              onChangeText={setTempHost}
-              placeholder="192.168.1.100"
-            />
+        {/* Connected Clients Section */}
+        <View className="mb-4 border border-gray-300 rounded-lg p-3 h-24">
+          <Text className="text-sm font-bold mb-2">Connected Clients:</Text>
+          <ScrollView>
+            {connectedClients.map((clientIP, index) => (
+              <Text key={index} className="text-sm text-gray-600">
+                {clientIP}
+              </Text>
+            ))}
+            {connectedClients.length === 0 && (
+              <Text className="text-sm text-gray-400 italic">
+                No other clients connected
+              </Text>
+            )}
+          </ScrollView>
+        </View>
 
-            <Text className="text-sm font-semibold mb-2">Port:</Text>
-            <TextInput
-              className="border border-gray-300 rounded-lg px-3 py-2 mb-6"
-              value={tempPort}
-              onChangeText={setTempPort}
-              placeholder="12345"
-              keyboardType="numeric"
-            />
-
-            <View className="flex-row justify-between">
+        {/* Messages Section */}
+        <View className="border border-gray-300 rounded-lg p-3 h-32">
+          <Text className="text-sm font-bold mb-2">Messages Received:</Text>
+          <View className="flex-1">
+            <ScrollView>
+              {receivedMessages.map((msg, index) => (
+                <Text key={index} className="text-sm text-gray-600">
+                  {msg.content}
+                  <Text className="text-xs text-gray-400">
+                    {" "}
+                    ({new Date(msg.timestamp).toLocaleTimeString()})
+                  </Text>
+                </Text>
+              ))}
+            </ScrollView>
+            {receivedMessages.length > 0 && (
               <Pressable
-                onPress={() => setShowSettings(false)}
-                className="flex-1 bg-gray-300 rounded-lg py-3 px-4 mr-2"
+                onPress={() => setReceivedMessages([])}
+                className="absolute right-2 top-2 p-1"
+                hitSlop={10}
               >
-                <Text className="text-center text-gray-700">Cancel</Text>
+                <FontAwesome6 name="trash-can" size={24} color="black" />
               </Pressable>
-
-              <Pressable
-                onPress={saveSettings}
-                className="flex-1 bg-blue-500 rounded-lg py-3 px-4 ml-2"
-              >
-                <Text className="text-center text-white">Save</Text>
-              </Pressable>
-            </View>
+            )}
           </View>
         </View>
-      </Modal>
-    </View>
+
+        <View className="items-center mt-5">
+          <Pressable
+            android_ripple={{ color: "#ccc", borderless: true }}
+            className="bg-white-500"
+            onPress={handleRefresh}
+          >
+            <Animated.View style={animatedStyles}>
+              <FontAwesome name="refresh" size={80} color={"#000"} />
+            </Animated.View>
+          </Pressable>
+        </View>
+      </View>
+    </SafeAreaView>
   );
 }
