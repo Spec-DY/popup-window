@@ -71,7 +71,7 @@ jobs:
         run: |
           cd client-mobile
           echo "=== Building app with JSON output ==="
-          eas build --platform android --profile production --non-interactive --json > build_output.json
+          eas build --platform android --clear-cache --profile production --non-interactive --json > build_output.json
           echo "=== Build output ==="
           cat build_output.json
           BUILD_URL=$(jq -r '.[0].artifacts.buildUrl' build_output.json)
