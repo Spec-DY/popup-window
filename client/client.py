@@ -44,27 +44,26 @@ class Client:
         # Themes: "blue" (default), "green", "dark-blue"
         ctk.set_default_color_theme("green")
 
+        self.host = host
+        self.port = port
         self.root = ctk.CTk()
         self.root.title("Client")
-        self.root.geometry("300x200")
+        self.root.geometry("300x220")
 
         # Set window icon
         self.root.iconbitmap(resource_path("appicon.ico"))
 
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.connected_clients = []
+        self.is_connected = False
 
-        while True:
-            try:
-                self.server.connect((host, port))
-                break
-            except (ConnectionRefusedError, OSError):
-                time.sleep(10)
-
+        # Create main UI elements
         ctk.CTkLabel(self.root, text="Message Client",
                      font=("Arial", 18)).pack(pady=20)
         ctk.CTkButton(self.root, text="Send Message",
                       command=self.send_message).pack(pady=10)
+        ctk.CTkButton(self.root, text="Settings",
+                      command=self.change_ip_address).pack(pady=10)
         ctk.CTkButton(self.root, text="Close",
                       command=self.shutdown).pack(pady=10)
 
@@ -74,13 +73,58 @@ class Client:
         self.setup_tray_icon()
         self.icon.run_detached()  # Start the tray icon in a detached thread immediately
 
-        # Start the receiver thread as a daemon
-        threading.Thread(target=self.receive_message, daemon=True).start()
+        # Start connection in a separate thread
+        threading.Thread(target=self.connect_to_server, daemon=True).start()
 
-        # Minimize after 0.1 second
+        # Minimize after 200ms
         self.root.after(200, self.auto_minimize)
 
         self.root.mainloop()
+
+    def connect_to_server(self):
+        """Attempt to connect to the server with the current host and port"""
+        max_attempts = 3
+        attempt = 0
+        while attempt < max_attempts and not self.is_connected:
+            try:
+                self.server.connect((self.host, self.port))
+                self.is_connected = True
+                # Start the receiver thread only after successful connection
+                threading.Thread(target=self.receive_message,
+                                 daemon=True).start()
+                break
+            except (ConnectionRefusedError, OSError) as e:
+                attempt += 1
+                if attempt == max_attempts:
+                    self.root.after(0, self.show_connection_error, str(e))
+                    break
+                time.sleep(1)
+
+    def show_connection_error(self, error_msg):
+        """Show a dialog when connection fails and allow retry or cancel"""
+        dialog = ctk.CTkToplevel(self.root)
+        dialog.title("Connection Error")
+        dialog.geometry("400x220")
+        dialog.attributes('-topmost', True)
+
+        # Center the dialog
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        dialog_width = 400
+        dialog_height = 220
+        x_offset = (screen_width - dialog_width) // 2
+        y_offset = (screen_height - dialog_height) // 2
+        dialog.geometry(
+            f"{dialog_width}x{dialog_height}+{x_offset}+{y_offset}")
+
+        ctk.CTkLabel(dialog, text=f"Failed to connect to {self.host}:{self.port}\nError: {error_msg}",
+                     wraplength=350).pack(pady=20)
+        ctk.CTkButton(dialog, text="Retry",
+                      command=lambda: [dialog.destroy(), threading.Thread(target=self.connect_to_server, daemon=True).start()]).pack(pady=10)
+        ctk.CTkButton(dialog, text="Change IP",
+                      command=lambda: [dialog.destroy(), self.change_ip_address()]).pack(pady=10)
+        ctk.CTkButton(dialog, text="Cancel",
+                      command=lambda: [dialog.destroy(), self.shutdown()]).pack(pady=10)
 
     def auto_minimize(self):
         self.root.withdraw()  # hide window
@@ -125,13 +169,14 @@ class Client:
             print(f"Error handling message: {e}")
 
     def receive_message(self):
-        while True:
+        while self.is_connected:
             try:
                 msg = self.server.recv(1024).decode()
                 if msg:
                     print(f"Received raw message: {msg}")
                     self.handle_message(msg)
             except ConnectionResetError:
+                self.is_connected = False
                 self.shutdown()
                 break
             except Exception as e:
@@ -200,6 +245,10 @@ class Client:
         ).pack(pady=(5, 0))  # Top padding only
 
     def send_message(self):
+        if not self.is_connected:
+            self.root.after(0, self.show_connection_error,
+                            "Not connected to server")
+            return
         dialog = ctk.CTkInputDialog(
             title="Send Message", text="Enter your message:")
 
@@ -221,6 +270,43 @@ class Client:
         msg = dialog.get_input()
         if msg:
             self.server.send(msg.encode())
+
+    def change_ip_address(self):
+        """Open a dialog to change the IP address and reconnect"""
+        dialog = ctk.CTkInputDialog(
+            title="Change Server IP", text="Enter new server IP address:")
+
+        # Get screen width and height
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+
+        # Get dialog window size (after it has been created)
+        dialog_width = dialog.winfo_width()
+        dialog_height = dialog.winfo_height()
+
+        # Calculate position for the dialog window to be centered
+        x_offset = (screen_width - dialog_width) // 2
+        y_offset = (screen_height - dialog_height) // 2
+
+        # Set the geometry of the dialog window
+        dialog.geometry(f"{x_offset}+{y_offset}")
+
+        new_ip = dialog.get_input()
+        if new_ip:
+            # Save the new IP address
+            save_ip_address(new_ip)
+            # Update the host
+            self.host = new_ip
+            # Close the current socket
+            try:
+                self.server.close()
+            except Exception as e:
+                print(f"Error closing socket: {str(e)}")
+            # Create a new socket and reconnect
+            self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.is_connected = False
+            threading.Thread(target=self.connect_to_server,
+                             daemon=True).start()
 
     def shutdown(self):
         # display window first
