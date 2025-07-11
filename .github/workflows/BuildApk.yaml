@@ -67,13 +67,7 @@ jobs:
             echo "existing_files=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: 🧹 Clear EAS Build Cache
-        run: |
-          cd client-mobile
-          eas build:clear-cache --non-interactive
-
       - name: 🚀 Build app and get download URL
-
         run: |
           cd client-mobile
           echo "=== Building app with JSON output ==="
