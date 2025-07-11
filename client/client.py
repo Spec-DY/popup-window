@@ -78,7 +78,7 @@ class Client:
         threading.Thread(target=self.receive_message, daemon=True).start()
 
         # Minimize after 0.1 second
-        self.root.after(100, self.auto_minimize)
+        self.root.after(200, self.auto_minimize)
 
         self.root.mainloop()
 
