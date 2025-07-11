@@ -37,13 +37,13 @@ jobs:
       - name: 🔧 Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: 🍭Generate timestamp version
+      - name: 🍭 Generate timestamp version
         id: version
         run: |
           VERSION="v$(date +'%Y.%m.%d-%H%M%S')"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: 📥Download existing release assets
+      - name: 📥 Download existing release assets
         id: download_existing
         run: |
           echo "🔍 Checking for existing release..."
@@ -67,11 +67,17 @@ jobs:
             echo "existing_files=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: 🧹 Clear EAS Build Cache
+        run: |
+          cd client-mobile
+          eas build:clear-cache --non-interactive
+
       - name: 🚀 Build app and get download URL
+
         run: |
           cd client-mobile
           echo "=== Building app with JSON output ==="
-          eas build --platform android --clear-cache --profile production --non-interactive --json > build_output.json
+          eas build --platform android --profile production --non-interactive --json > build_output.json
           echo "=== Build output ==="
           cat build_output.json
           BUILD_URL=$(jq -r '.[0].artifacts.buildUrl' build_output.json)
@@ -96,7 +102,7 @@ jobs:
             exit 1
           fi
 
-      - name: 🍩Prepare release files
+      - name: 🍩 Prepare release files
         run: |
           mkdir -p ./release
 
@@ -118,7 +124,7 @@ jobs:
           echo "=== Final release files ==="
           ls -la ./release/
 
-      - name: 🍆Create Release and Upload Assets
+      - name: 🍆 Create Release and Upload Assets
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.version.outputs.version }}
