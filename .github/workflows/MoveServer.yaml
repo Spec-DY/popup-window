@@ -32,10 +32,10 @@ jobs:
           fi
       - name: 🍩 Add server.py
         run: |
-          # 复制新的server.py
-          cp server.py ./release/server.py
+          echo Copy server.py
+          cp server/server.py ./release/server.py
           
-          echo "=== Release文件 ==="
+          echo List release file
           ls -la ./release/
   
       - name: 🍆Create Release and Upload Assets
