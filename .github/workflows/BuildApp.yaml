@@ -238,7 +238,7 @@ jobs:
 
             - **Windows Desktop**: `client-${{ steps.version.outputs.version }}-windows.exe`
             - **Linux Desktop**: `client-${{ steps.version.outputs.version }}-ubuntu`
-            - **Android Mobile**: `popups-${{ steps.version.outputs.version }}.apk`
+            - **Android Mobile**: `client-${{ steps.version.outputs.version }}-android.apk`
             - **Server**: Clone repository for `server.py`
 
           files: ./release/*
