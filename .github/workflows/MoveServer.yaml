@@ -5,6 +5,7 @@ on:
     - main
     paths:
     - server/server.py
+    - .github/workflows/MoveServer.yaml
 permissions:
   contents: write
 
