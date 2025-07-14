@@ -37,6 +37,12 @@ jobs:
           
           echo List release file
           ls -la ./release/
+
+      - name: 🍭 Generate timestamp version
+        id: version
+        run: |
+          VERSION="v$(date +'%Y.%m.%d-%H%M%S')"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
   
       - name: 🍆Create Release and Upload Assets
         uses: softprops/action-gh-release@v1
