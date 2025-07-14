@@ -31,7 +31,7 @@ You can set up server.py to run as a systemd service. This will ensure that the 
 Create a new service file for your server. You can do this by creating a file in the `/etc/systemd/system/`directory. For example, create a file named `popup.service`:
 
 ```bash
-sudo nano /etc/systemd/system/messagehub.service
+sudo nano /etc/systemd/system/popup.service
 ```
 
 Add the following content to the file:
