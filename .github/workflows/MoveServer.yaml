@@ -21,7 +21,7 @@ jobs:
           mkdir -p ./release
           LATEST_RELEASE=$(curl -s "https://api.github.com/repos/${{ github.repository }}/releases/latest" || echo "{}")
           if [ "$(echo $LATEST_RELEASE | jq -r '.message')" != "Not Found" ]; then
-            echo "✅ Downloading existing files..."
+            echo "✅ Downloading existing files.."
 
             echo $LATEST_RELEASE | jq -r '.assets[].browser_download_url' | while read url; do
               if [ -n "$url" ]; then
