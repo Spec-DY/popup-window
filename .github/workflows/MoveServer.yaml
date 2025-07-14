@@ -1,0 +1,76 @@
+name: Move server.py to release
+on: 
+  push:
+    branches:
+    - main
+    paths:
+    - server/server.py
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Download existing release assets
+        run: |
+          mkdir -p ./release
+          LATEST_RELEASE=$(curl -s "https://api.github.com/repos/${{ github.repository }}/releases/latest" || echo "{}")
+          if [ "$(echo $LATEST_RELEASE | jq -r '.message')" != "Not Found" ]; then
+            echo "✅ Downloading existing files..."
+
+            echo $LATEST_RELEASE | jq -r '.assets[].browser_download_url' | while read url; do
+              if [ -n "$url" ]; then
+                echo "📥 Download: $(basename $url)"
+                curl -L -o "./release/$(basename $url)" "$url"
+              fi
+            done
+          fi
+      - name: 🍩 Add server.py
+        run: |
+          # 复制新的server.py
+          cp server.py ./release/server.py
+          
+          echo "=== Release文件 ==="
+          ls -la ./release/
+  
+      - name: 🍆Create Release and Upload Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Release ${{ steps.version.outputs.version }}
+          body: |
+            🚀 **Multi-Platform Release**
+
+            Automatically built and released from commit ${{ github.sha }}
+
+            ## 📋 Server Setup
+            1. Clone repository and deploy `server.py` on your server
+            3. Run: `python3 server.py`
+            4. Server will listen on port 12345 by default
+
+            ## 💻 Desktop Clients
+            1. Download the appropriate client for your OS
+            2. Run the executable
+            3. If server and client are on same device, use `127.0.0.1` as server address
+
+            ## 📱 Mobile App (Android)
+            1. Download the APK file
+            2. Enable "Install from unknown sources" in Android settings
+            3. Install the APK on your device
+            4. Configure server address in the app
+
+            ## 📦 Available Downloads
+
+            - **Windows Desktop**: `client-${{ steps.version.outputs.version }}-windows.exe`
+            - **Linux Desktop**: `client-${{ steps.version.outputs.version }}-ubuntu`
+            - **Android Mobile**: `client-${{ steps.version.outputs.version }}-android.apk`
+            - **Server**: Clone repository for `server.py`
+
+          files: ./release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
