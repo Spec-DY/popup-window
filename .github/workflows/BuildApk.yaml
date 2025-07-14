@@ -87,10 +87,10 @@ jobs:
         run: |
           echo "=== Downloading APK ==="
           echo "Build URL: $BUILD_URL"
-          curl -L -o popups-${{ steps.version.outputs.version }}.apk "$BUILD_URL"
+          curl -L -o client-${{ steps.version.outputs.version }}-android.apk "$BUILD_URL"
           echo "✅ Downloaded APK successfully"
-          if [ -f popups-${{ steps.version.outputs.version }}.apk ]; then
-            echo "✅ APK file size: $(ls -lh popups-${{ steps.version.outputs.version }}.apk | awk '{print $5}')"
+          if [ -f client-${{ steps.version.outputs.version }}-android.apk ]; then
+            echo "✅ APK file size: $(ls -lh client-${{ steps.version.outputs.version }}-android.apk | awk '{print $5}')"
           else
             echo "❌ APK download failed"
             exit 1
@@ -104,16 +104,16 @@ jobs:
             cp -r ./existing-assets/* ./release/ 2>/dev/null || true
           fi
 
-          if [ -f popups-${{ steps.version.outputs.version }}.apk ]; then
+          if [ -f client-${{ steps.version.outputs.version }}-android.apk ]; then
             echo "📱 Copying APK to release directory..."
-            cp popups-${{ steps.version.outputs.version }}.apk ./release/
+            cp client-${{ steps.version.outputs.version }}-android.apk ./release/
             echo "✅ APK copied successfully"
           else
-            echo "❌ APK file not found: popups-${{ steps.version.outputs.version }}.apk"
-            ls -la popups-*.apk 2>/dev/null || echo "No APK files found"
+            echo "❌ APK file not found: client-${{ steps.version.outputs.version }}-android.apk"
+            ls -la client-*.apk 2>/dev/null || echo "No APK files found"
           fi
 
-          find ./release -name "popups-v*.apk" ! -name "popups-${{ steps.version.outputs.version }}.apk" -delete 2>/dev/null || true
+          find ./release -name "client-v*.apk" ! -name "client-${{ steps.version.outputs.version }}-android.apk" -delete 2>/dev/null || true
 
           echo "=== Final release files ==="
           ls -la ./release/
@@ -146,7 +146,7 @@ jobs:
             ## 📦 Available Downloads
             - **Windows Desktop**: `client-${{ steps.version.outputs.version }}-windows.exe`
             - **Linux Desktop**: `client-${{ steps.version.outputs.version }}-ubuntu`
-            - **Android Mobile**: `popups-${{ steps.version.outputs.version }}.apk`
+            - **Android Mobile**: `client-${{ steps.version.outputs.version }}-android.apk`
             - **Server**: Clone repository for `server.py`
 
           files: ./release/*
