@@ -163,8 +163,13 @@ class Server:
                     except (json.JSONDecodeError, ValueError):
                         pass
 
-                    # Encrypted message - broadcast opaquely
-                    broadcast_msg = self.create_message("msg", msg)
+                    # Encrypted message - broadcast opaquely with sender info
+                    broadcast_msg = json.dumps({
+                        "type": "msg",
+                        "data": msg,
+                        "sender": client_addr,
+                        "timestamp": datetime.now().isoformat()
+                    })
                     self.broadcast(broadcast_msg, client, encrypted_only=True)
 
                     # Send status response to sender

@@ -59,6 +59,25 @@ message_logs.json
 build/
 dist/
 
+# Android Client
+client-android/.gradle/
+client-android/.kotlin/
+client-android/build/
+client-android/app/build/
+client-android/app/release/
+client-android/local.properties
+client-android/*.iml
+client-android/app/*.iml
+client-android/.idea/
+client-android/captures/
+client-android/.externalNativeBuild/
+client-android/.cxx/
+client-android/assets/
+
 # IDE
 .vscode/
 .idea/
+
+/client-android/tmpclaude*
+
+/keypath
