@@ -52,12 +52,21 @@ class Server:
             target=self.key_rotation_loop, daemon=True)
         self.rotation_thread.start()
 
-        # Wait for commands
-        while self.running:
-            cmd = input().strip().lower()
-            if cmd == 'quit' or cmd == 'exit':
+        # Wait for commands (skip if no stdin, e.g. systemd)
+        if sys.stdin and sys.stdin.isatty():
+            while self.running:
+                try:
+                    cmd = input().strip().lower()
+                    if cmd == 'quit' or cmd == 'exit':
+                        self.close_server()
+                        break
+                except EOFError:
+                    break
+        else:
+            try:
+                self.stop_event.wait()
+            except KeyboardInterrupt:
                 self.close_server()
-                break
 
     def create_message(self, msg_type, data):
         return json.dumps({
