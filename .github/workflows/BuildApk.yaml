@@ -1,12 +1,12 @@
 name: Build and Release APK
 run-name: ${{github.actor}} is building and releasing APK
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "client-mobile/**"
-      - ".github/workflows/BuildApk.yaml"
+  # push:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - "client-mobile/**"
+  #     - ".github/workflows/BuildApk.yaml"
 permissions:
   contents: write
 jobs:
