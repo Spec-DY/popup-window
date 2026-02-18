@@ -84,7 +84,7 @@ jobs:
       - name: 🌭Build the app (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          pyinstaller --onefile --noconsole --version-file=client/util/version.txt --add-data "client/assets/appicon.ico;." --add-data "client/assets/appicon.jpg;." --icon client/assets/appicon.jpg client/client.py
+          pyinstaller --onefile --noconsole --version-file=client/util/version.txt --add-data "client/assets/appicon.ico;assets" --add-data "client/assets/appicon.jpg;assets" --icon client/assets/appicon.ico client/client.py
           Write-Output "✅ Executable built successfully"
         shell: pwsh
 
@@ -117,7 +117,7 @@ jobs:
       - name: 🍬Build the app (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
         run: |
-          pyinstaller --onefile --add-data "client/assets/appicon.ico:." --add-data "client/assets/appicon.jpg:." client/client.py
+          pyinstaller --onefile --add-data "client/assets/appicon.ico:assets" --add-data "client/assets/appicon.jpg:assets" client/client.py
 
       - name: 🍩Upload artifacts
         uses: actions/upload-artifact@v4
