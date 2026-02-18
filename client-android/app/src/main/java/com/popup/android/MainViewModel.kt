@@ -3,9 +3,14 @@ package com.popup.android
 import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.viewModelScope
 import com.popup.android.crypto.CryptoManager
 import com.popup.android.network.PopupSocketClient
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -68,15 +73,37 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var rsaKeyPair: KeyPair? = null
     private var aesKey: ByteArray? = null
     private var previousAesKey: ByteArray? = null
+    private var isForeground = true
+    private var reconnectJob: Job? = null
 
     // ── Lifecycle ───────────────────────────────────────────
 
+    private val lifecycleObserver = object : DefaultLifecycleObserver {
+        override fun onStart(owner: LifecycleOwner) {
+            // App came to foreground
+            isForeground = true
+            if (!_isConnected.value) {
+                scheduleReconnect()
+            }
+        }
+
+        override fun onStop(owner: LifecycleOwner) {
+            // App went to background
+            isForeground = false
+            reconnectJob?.cancel()
+            reconnectJob = null
+        }
+    }
+
     init {
+        ProcessLifecycleOwner.get().lifecycle.addObserver(lifecycleObserver)
         connect()
     }
 
     override fun onCleared() {
         super.onCleared()
+        reconnectJob?.cancel()
+        ProcessLifecycleOwner.get().lifecycle.removeObserver(lifecycleObserver)
         socketClient?.disconnect()
     }
 
@@ -162,6 +189,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (connected) {
                     _status.value = "Connected, setting up encryption..."
                     initiateKeyExchange()
+                } else if (isForeground) {
+                    scheduleReconnect()
                 }
             }
         }
@@ -178,6 +207,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun disconnect() {
+        reconnectJob?.cancel()
+        reconnectJob = null
         socketClient?.disconnect()
         socketClient = null
         _isConnected.value = false
@@ -186,6 +217,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         aesKey = null
         previousAesKey = null
         rsaKeyPair = null
+    }
+
+    /** Schedule a reconnect attempt with delay. Only runs while app is in foreground. */
+    private fun scheduleReconnect() {
+        reconnectJob?.cancel()
+        reconnectJob = viewModelScope.launch {
+            delay(500)
+            if (isForeground && !_isConnected.value) {
+                _status.value = "Reconnecting..."
+                connect()
+            }
+        }
     }
 
     // ── Key Exchange ────────────────────────────────────────
