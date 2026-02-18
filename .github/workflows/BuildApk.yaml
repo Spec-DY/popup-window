@@ -1,6 +1,7 @@
 name: Build and Release APK
 run-name: ${{github.actor}} is building and releasing APK
 on:
+  workflow_dispatch:
   # push:
   #   branches:
   #     - main
