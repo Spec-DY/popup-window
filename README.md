@@ -13,10 +13,20 @@
 
 ### Installation:
 
-1. Run `server.py` in your home server (e.g. Raspberry pi)
-2. Download `client` for Windows, Ubuntu or Android
-3. Enter your server IP address in client end (only required by first time).
+1. Auto setup server.py on your home server with a single command:
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/Spec-DY/popup-window/main/server/setup.sh | bash
+   ```
+3. Download `client` in Release for Windows, Ubuntu or Android
+4. Enter your server IP address in client end (only required by first time).
 
+Update server:
+```bash
+curl -fsSL https://raw.githubusercontent.com/Spec-DY/popup-window/main/server/update.sh | bash
+```
+
+
+## Manual Setup
 ### Persistent server.py
 
 You can set up server.py to run as a systemd service. This will ensure that the server restarts automatically in case of an accidental close or machine restart.
