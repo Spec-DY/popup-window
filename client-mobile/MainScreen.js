@@ -22,6 +22,8 @@ import Animated, {
 } from "react-native-reanimated";
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import CryptoJS from "crypto-js";
+import JSEncrypt from "jsencrypt";
 
 export default function MainScreen() {
   const [message, setMessage] = useState("");
@@ -33,6 +35,10 @@ export default function MainScreen() {
   const [showSettings, setShowSettings] = useState(false);
   const [tempIP, setTempIP] = useState("");
   const rotation = useSharedValue(0);
+  const [encryptionReady, setEncryptionReady] = useState(false);
+  const rsaKeyRef = React.useRef(null);
+  const aesKeyRef = React.useRef(null);
+  const prevAesKeyRef = React.useRef(null);
 
   const [serverConfig, setServerConfig] = useState({
     host: "192.168.50.8",
@@ -101,6 +107,97 @@ export default function MainScreen() {
     setShowSettings(true);
   };
 
+  const generateAndSendKeys = (tcpClient) => {
+    setStatus("Setting up encryption...");
+    setTimeout(() => {
+      try {
+        const encrypt = new JSEncrypt({ default_key_size: 2048 });
+        encrypt.getKey();
+        rsaKeyRef.current = encrypt;
+
+        const publicKeyPem = encrypt.getPublicKey();
+        const keyMsg = JSON.stringify({
+          type: "key_exchange",
+          public_key: publicKeyPem,
+        });
+
+        tcpClient.write(keyMsg);
+        setStatus("Key exchange in progress...");
+      } catch (error) {
+        console.error("RSA key generation failed:", error);
+        setStatus("Encryption setup failed: " + error.message);
+      }
+    }, 100);
+  };
+
+  const handleSessionKey = (data) => {
+    try {
+      const encryptedKeyB64 = data.encrypted_key;
+      const aesKeyHex = rsaKeyRef.current.decrypt(encryptedKeyB64);
+
+      if (!aesKeyHex) {
+        console.error("RSA decryption returned null");
+        setStatus("Key exchange failed");
+        return;
+      }
+
+      prevAesKeyRef.current = aesKeyRef.current;
+      aesKeyRef.current = CryptoJS.enc.Hex.parse(aesKeyHex);
+      setEncryptionReady(true);
+      setStatus("Connected & encrypted");
+    } catch (error) {
+      console.error("Session key processing failed:", error);
+      setStatus("Key exchange failed: " + error.message);
+    }
+  };
+
+  const encryptMessage = (plaintext) => {
+    const iv = CryptoJS.lib.WordArray.random(16);
+    const encrypted = CryptoJS.AES.encrypt(plaintext, aesKeyRef.current, {
+      iv: iv,
+      mode: CryptoJS.mode.CBC,
+      padding: CryptoJS.pad.Pkcs7,
+    });
+    const combined = iv.concat(encrypted.ciphertext);
+    return CryptoJS.enc.Base64.stringify(combined);
+  };
+
+  const decryptMessage = (encryptedB64) => {
+    const rawWordArray = CryptoJS.enc.Base64.parse(encryptedB64);
+    const iv = CryptoJS.lib.WordArray.create(
+      rawWordArray.words.slice(0, 4),
+      16,
+    );
+    const ciphertext = CryptoJS.lib.WordArray.create(
+      rawWordArray.words.slice(4),
+      rawWordArray.sigBytes - 16,
+    );
+
+    // Try current key first, fallback to previous key during rotation
+    const tryDecrypt = (key) => {
+      const decrypted = CryptoJS.AES.decrypt(
+        { ciphertext: ciphertext },
+        key,
+        {
+          iv: iv,
+          mode: CryptoJS.mode.CBC,
+          padding: CryptoJS.pad.Pkcs7,
+        },
+      );
+      return decrypted.toString(CryptoJS.enc.Utf8);
+    };
+
+    const result = tryDecrypt(aesKeyRef.current);
+    if (result) return result;
+
+    if (prevAesKeyRef.current) {
+      const fallback = tryDecrypt(prevAesKeyRef.current);
+      if (fallback) return fallback;
+    }
+
+    throw new Error("Decryption failed with both current and previous key");
+  };
+
   const parseMessages = (data) => {
     try {
       // Split concatenated JSON objects
@@ -127,7 +224,6 @@ export default function MainScreen() {
       case "status":
         if (data.code === "200") {
           setIsConnected(true);
-          setStatus("Connected successfully");
         }
         break;
 
@@ -139,13 +235,22 @@ export default function MainScreen() {
         break;
 
       case "msg":
-        setReceivedMessages((prev) => [
-          ...prev,
-          {
-            content: data,
-            timestamp,
-          },
-        ]);
+        try {
+          const decryptedContent = decryptMessage(data);
+          setReceivedMessages((prev) => [
+            ...prev,
+            {
+              content: decryptedContent,
+              timestamp,
+            },
+          ]);
+        } catch (error) {
+          console.error("Message decryption failed:", error);
+        }
+        break;
+
+      case "session_key":
+        handleSessionKey(data);
         break;
     }
   };
@@ -163,6 +268,10 @@ export default function MainScreen() {
     if (client) {
       client.destroy();
       setIsConnected(false);
+      setEncryptionReady(false);
+      aesKeyRef.current = null;
+      prevAesKeyRef.current = null;
+      rsaKeyRef.current = null;
       setStatus("Reconnecting...");
     }
     rotation.value = withRepeat(withTiming(360, { duration: 800 }), 1, false);
@@ -176,9 +285,18 @@ export default function MainScreen() {
       client.destroy();
     }
 
+    // Reset encryption state
+    setEncryptionReady(false);
+    aesKeyRef.current = null;
+    prevAesKeyRef.current = null;
+    rsaKeyRef.current = null;
+
     const newClient = TcpSocket.createConnection(serverConfig, () => {
       console.log("Connected to server");
       setStatus("Connecting to server...");
+
+      // Initiate key exchange after connection
+      generateAndSendKeys(newClient);
     });
 
     // data receive event
@@ -209,8 +327,14 @@ export default function MainScreen() {
       return;
     }
 
+    if (!encryptionReady) {
+      setStatus("Encryption not ready, please wait...");
+      return;
+    }
+
     try {
-      client.write(message);
+      const encrypted = encryptMessage(message);
+      client.write(encrypted);
       setStatus("Message Sent");
       setMessage("");
     } catch (error) {
@@ -328,9 +452,11 @@ export default function MainScreen() {
           onPress={sendMessage}
           android_ripple={{ color: "#ccc", borderless: false }}
           className={`py-3 px-4 rounded-lg ${
-            isConnected ? "bg-blue-500 active:bg-blue-700" : "bg-gray-400"
+            isConnected && encryptionReady
+              ? "bg-blue-500 active:bg-blue-700"
+              : "bg-gray-400"
           }`}
-          disabled={!isConnected}
+          disabled={!isConnected || !encryptionReady}
         >
           <Text className="text-white text-center text-lg">Send</Text>
         </Pressable>

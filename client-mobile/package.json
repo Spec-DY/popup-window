@@ -11,8 +11,10 @@
   "dependencies": {
     "@react-native-async-storage/async-storage": "1.23.1",
     "@rn-primitives/slot": "^1.1.0",
+    "crypto-js": "^4.2.0",
     "expo": "^52.0.17",
     "expo-status-bar": "^2.0.0",
+    "jsencrypt": "^3.3.2",
     "nativewind": "^4.1.23",
     "react": "18.3.1",
     "react-native": "^0.76.3",

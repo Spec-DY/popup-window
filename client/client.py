@@ -8,6 +8,12 @@ from PIL import Image
 import time
 import sys
 import json
+import base64
+import re
+from cryptography.hazmat.primitives.asymmetric import rsa, padding as asym_padding
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.padding import PKCS7
 
 
 def resource_path(relative_path):
@@ -20,7 +26,7 @@ def resource_path(relative_path):
 
 
 def create_image():
-    image = Image.open(resource_path("appicon.jpg"))
+    image = Image.open(resource_path(os.path.join("assets", "appicon.jpg")))
     return image
 
 
@@ -51,11 +57,16 @@ class Client:
         self.root.geometry("300x220")
 
         # Set window icon
-        self.root.iconbitmap(resource_path("appicon.ico"))
+        self.root.iconbitmap(resource_path(os.path.join("assets", "appicon.ico")))
 
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.connected_clients = []
         self.is_connected = False
+        self.private_key = None
+        self.public_key_pem = None
+        self.aes_key = None
+        self.previous_aes_key = None
+        self.encryption_ready = False
 
         # Create main UI elements
         ctk.CTkLabel(self.root, text="Message Client",
@@ -85,10 +96,16 @@ class Client:
         """Attempt to connect to the server with the current host and port"""
         max_attempts = 3
         attempt = 0
+        self.encryption_ready = False
+        self.aes_key = None
+        self.previous_aes_key = None
         while attempt < max_attempts and not self.is_connected:
             try:
                 self.server.connect((self.host, self.port))
                 self.is_connected = True
+                # Initiate key exchange
+                self.generate_rsa_keys()
+                self.send_public_key()
                 # Start the receiver thread only after successful connection
                 threading.Thread(target=self.receive_message,
                                  daemon=True).start()
@@ -130,6 +147,81 @@ class Client:
         self.root.withdraw()  # hide window
         self.icon.visible = True  # display tray icon
 
+    def generate_rsa_keys(self):
+        """Generate RSA-2048 keypair for key exchange"""
+        self.private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+        )
+        public_key = self.private_key.public_key()
+        self.public_key_pem = public_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        ).decode()
+
+    def send_public_key(self):
+        """Send RSA public key to server for key exchange"""
+        key_msg = json.dumps({
+            "type": "key_exchange",
+            "public_key": self.public_key_pem
+        })
+        self.server.send(key_msg.encode())
+
+    def handle_session_key(self, data):
+        """Decrypt AES session key from server's RSA-encrypted response"""
+        try:
+            encrypted_key = base64.b64decode(data["encrypted_key"])
+            aes_key_hex = self.private_key.decrypt(
+                encrypted_key,
+                asym_padding.PKCS1v15()
+            ).decode()
+            self.previous_aes_key = self.aes_key
+            self.aes_key = bytes.fromhex(aes_key_hex)
+            self.encryption_ready = True
+            print("Encryption ready - session key received")
+        except Exception as e:
+            print(f"Failed to process session key: {e}")
+
+    def encrypt_message(self, plaintext):
+        """Encrypt plaintext using AES-256-CBC, return base64(IV + ciphertext)"""
+        iv = os.urandom(16)
+        padder = PKCS7(128).padder()
+        padded_data = padder.update(
+            plaintext.encode('utf-8')) + padder.finalize()
+        cipher = Cipher(algorithms.AES(self.aes_key), modes.CBC(iv))
+        encryptor = cipher.encryptor()
+        ciphertext = encryptor.update(padded_data) + encryptor.finalize()
+        return base64.b64encode(iv + ciphertext).decode()
+
+    def _aes_decrypt(self, key, iv, ciphertext):
+        """Decrypt with a specific AES key"""
+        cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
+        decryptor = cipher.decryptor()
+        padded_data = decryptor.update(ciphertext) + decryptor.finalize()
+        unpadder = PKCS7(128).unpadder()
+        plaintext = unpadder.update(padded_data) + unpadder.finalize()
+        return plaintext.decode('utf-8')
+
+    def decrypt_message(self, encrypted_b64):
+        """Decrypt base64(IV + ciphertext), fallback to previous key during rotation"""
+        raw = base64.b64decode(encrypted_b64)
+        iv = raw[:16]
+        ciphertext = raw[16:]
+        try:
+            return self._aes_decrypt(self.aes_key, iv, ciphertext)
+        except Exception:
+            if self.previous_aes_key:
+                return self._aes_decrypt(self.previous_aes_key, iv, ciphertext)
+            raise
+
+    def parse_messages(self, raw_data):
+        """Split concatenated JSON messages and handle each one"""
+        messages = re.split(r'(?<=})\s*(?={)', raw_data)
+        for msg_str in messages:
+            msg_str = msg_str.strip()
+            if msg_str:
+                self.handle_message(msg_str)
+
     def setup_tray_icon(self):
         self.icon = icon("Client",
                          create_image(),
@@ -156,8 +248,17 @@ class Client:
             data = msg.get("data")
 
             if msg_type == "msg":
-                self.show_message(data)
-                pyperclip.copy(data)
+                if self.encryption_ready:
+                    try:
+                        decrypted = self.decrypt_message(data)
+                        self.show_message(decrypted)
+                        pyperclip.copy(decrypted)
+                    except Exception as e:
+                        print(f"Decryption error: {e}")
+                else:
+                    print("Received encrypted message but encryption not ready")
+            elif msg_type == "session_key":
+                self.handle_session_key(data)
             elif msg_type == "client":
                 self.update_clients_list(data)
             elif msg_type == "status":
@@ -171,10 +272,10 @@ class Client:
     def receive_message(self):
         while self.is_connected:
             try:
-                msg = self.server.recv(1024).decode()
+                msg = self.server.recv(4096).decode()
                 if msg:
                     print(f"Received raw message: {msg}")
-                    self.handle_message(msg)
+                    self.parse_messages(msg)
             except ConnectionResetError:
                 self.is_connected = False
                 self.shutdown()
@@ -249,6 +350,10 @@ class Client:
             self.root.after(0, self.show_connection_error,
                             "Not connected to server")
             return
+        if not self.encryption_ready:
+            self.root.after(0, self.show_connection_error,
+                            "Encryption not ready yet, please wait")
+            return
         dialog = ctk.CTkInputDialog(
             title="Send Message", text="Enter your message:")
 
@@ -269,7 +374,11 @@ class Client:
 
         msg = dialog.get_input()
         if msg:
-            self.server.send(msg.encode())
+            try:
+                encrypted = self.encrypt_message(msg)
+                self.server.send(encrypted.encode())
+            except Exception as e:
+                print(f"Encryption/send error: {e}")
 
     def change_ip_address(self):
         """Open a dialog to change the IP address and reconnect"""
@@ -305,6 +414,9 @@ class Client:
             # Create a new socket and reconnect
             self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.is_connected = False
+            self.encryption_ready = False
+            self.aes_key = None
+            self.previous_aes_key = None
             threading.Thread(target=self.connect_to_server,
                              daemon=True).start()
 

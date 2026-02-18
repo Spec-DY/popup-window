@@ -11,6 +11,12 @@ client/*.pyc
 client/build/
 client/dist/
 client/*.log
+client/*.spec
+
+
+# claude
+/tmpclaude*
+nul
 
 # Mobile Client (React Native/Expo)
 client-mobile/node_modules/
